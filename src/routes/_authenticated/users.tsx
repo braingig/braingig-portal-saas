@@ -21,10 +21,12 @@ import {
   loadMemberWorkspaces,
   loadOrganizationDirectory,
   loadPendingOrgInvites,
+  revokeOrgInvite,
   updateMemberRole,
   updateMemberStatus,
   type MemberStatus,
   type OrgMember,
+  type PendingOrgInvite,
 } from "@/lib/users/directory";
 import { sendInviteEmail } from "@/lib/email/notifications";
 import {
@@ -64,6 +66,7 @@ function UsersPage() {
   const [inviteRole, setInviteRole] = useState<AppRole>("admin");
   const [lastToken, setLastToken] = useState<{ email: string; token: string } | null>(null);
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<AppRole | "all">("all");
   const [statusFilter, setStatusFilter] = useState<MemberStatus | "all">("all");
@@ -165,6 +168,28 @@ function UsersPage() {
   function copyToken(token: string, email?: string) {
     navigator.clipboard.writeText(token);
     toast.success(email ? `Invite code copied for ${email}` : "Copied to clipboard");
+  }
+
+  async function revokeInvite(invite: PendingOrgInvite) {
+    if (!orgId) return;
+    setBusyInviteId(invite.id);
+    try {
+      await revokeOrgInvite(orgId, invite.id);
+      await logAudit("invite.revoked", "invite", invite.id, {
+        email: invite.email,
+        role: invite.role,
+      });
+      if (lastToken?.email === invite.email) {
+        setLastToken(null);
+      }
+      toast.success(`Invite revoked for ${invite.email}`);
+      await load();
+    } catch (err: unknown) {
+      toast.error(err instanceof Error ? err.message : "Failed to revoke invite");
+      throw err;
+    } finally {
+      setBusyInviteId(null);
+    }
   }
 
   function openMemberDrawer(member: OrgMember) {
@@ -290,6 +315,7 @@ function UsersPage() {
         busyUserId={busyUserId}
         showWorkspace={showWorkspace}
         memberWorkspaces={memberWorkspaces}
+        searchQuery={search}
         statusOptions={STATUS_OPTIONS}
         roleOptions={ROLE_OPTIONS}
         hasFilters={hasFilters}
@@ -304,8 +330,10 @@ function UsersPage() {
         invites={filteredInvites}
         totalCount={pendingInvites.length}
         showWorkspace={showWorkspace}
-        searchActive={Boolean(search.trim())}
+        searchQuery={search}
+        busyInviteId={busyInviteId}
         onCopyToken={copyToken}
+        onRevokeInvite={revokeInvite}
       />
 
       <MemberDetailDrawer

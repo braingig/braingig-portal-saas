@@ -1,5 +1,5 @@
 import { format, isSameDay } from "date-fns";
-import { MessageSquare, MoreHorizontal, Pencil, Reply, Trash2 } from "lucide-react";
+import { ChevronDown, MessageSquare, MoreHorizontal, Pencil, Reply, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import {
   AlertDialog,
@@ -18,9 +18,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { AnimatedCollapse, collapseChevronClass } from "@/components/ui/animated-collapse";
 import { CommentBody } from "@/components/tasks/details/comment-body";
 import { CommentComposer } from "@/components/tasks/details/comment-composer";
-import { TaskDetailsSection } from "@/components/tasks/details/task-details-section";
 import { countComments, type TaskCommentNode } from "@/lib/tasks/comments";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ type TaskDetailsCommentsProps = {
   onUpdate: (commentId: string, body: string) => Promise<void>;
   onDelete: (commentId: string) => Promise<void>;
   bare?: boolean;
+  defaultOpen?: boolean;
 };
 
 function formatCommentTime(iso: string) {
@@ -282,7 +283,9 @@ export function TaskDetailsComments({
   onUpdate,
   onDelete,
   bare = false,
+  defaultOpen = false,
 }: TaskDetailsCommentsProps) {
+  const [open, setOpen] = useState(defaultOpen);
   const totalCount = useMemo(() => countComments(comments), [comments]);
 
   const body = (
@@ -318,9 +321,38 @@ export function TaskDetailsComments({
 
   if (bare) return body;
 
+  const label = totalCount > 0 ? `Comments (${totalCount})` : "Comments";
+  const toggleHint = open
+    ? "Hide comments"
+    : totalCount > 0
+      ? `View ${totalCount} comment${totalCount === 1 ? "" : "s"}`
+      : "Add a comment";
+
   return (
-    <TaskDetailsSection title="Comments" icon={MessageSquare} count={totalCount}>
-      {body}
-    </TaskDetailsSection>
+    <section className="rounded-xl border border-border bg-card p-5 shadow-soft">
+      <button
+        type="button"
+        onClick={() => setOpen((value) => !value)}
+        className="flex w-full items-center justify-between gap-3 text-left"
+        aria-expanded={open}
+      >
+        <div className="min-w-0">
+          <h2 className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <MessageSquare className="size-3.5 shrink-0" />
+            {label}
+          </h2>
+          {!open && (
+            <p className="mt-1 text-xs text-muted-foreground">{toggleHint}</p>
+          )}
+        </div>
+        <ChevronDown
+          className={collapseChevronClass(open, "size-4 shrink-0 text-muted-foreground")}
+        />
+      </button>
+
+      <AnimatedCollapse open={open} contentClassName="min-h-0">
+        <div className="pt-4">{body}</div>
+      </AnimatedCollapse>
+    </section>
   );
 }

@@ -3,6 +3,7 @@ import { format, isPast, isToday } from "date-fns";
 import { Calendar, CheckCircle2, ChevronDown, ListPlus, Pencil, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnimatedCollapse, collapseChevronClass } from "@/components/ui/animated-collapse";
+import { HighlightedText } from "@/components/ui/highlighted-text";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { TaskStatusPicker } from "@/components/tasks/task-status-picker";
 import {
@@ -52,23 +53,6 @@ function dueDateLabel(dueDate: string) {
   if (isToday(date)) return "Today";
   if (isPast(date)) return format(date, "MMM d");
   return format(date, "MMM d");
-}
-
-function HighlightedTitle({ title, query }: { title: string; query: string }) {
-  const q = query.trim();
-  if (!q) return <>{title}</>;
-
-  const lower = title.toLowerCase();
-  const idx = lower.indexOf(q.toLowerCase());
-  if (idx === -1) return <>{title}</>;
-
-  return (
-    <>
-      {title.slice(0, idx)}
-      <mark className="rounded bg-brand/20 px-0.5 text-foreground">{title.slice(idx, idx + q.length)}</mark>
-      {title.slice(idx + q.length)}
-    </>
-  );
 }
 
 export function TaskListItemRow({
@@ -134,7 +118,7 @@ export function TaskListItemRow({
                 isDone && "text-muted-foreground/70 line-through",
               )}
             >
-              <HighlightedTitle title={task.title} query={searchQuery} />
+              <HighlightedText text={task.title} query={searchQuery} />
             </button>
           ) : (
             <Link
@@ -146,7 +130,7 @@ export function TaskListItemRow({
                 isDone && "text-muted-foreground/70 line-through",
               )}
             >
-              <HighlightedTitle title={task.title} query={searchQuery} />
+              <HighlightedText text={task.title} query={searchQuery} />
             </Link>
           )}
         </div>

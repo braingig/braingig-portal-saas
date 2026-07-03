@@ -1,137 +1,174 @@
-import { Clock } from "lucide-react";
+import type { ReactNode } from "react";
+import { Calendar, Clock, Flag, FolderOpen, Hourglass, User, Users } from "lucide-react";
+import { DetailCard } from "@/components/projects/details/detail-card";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { TaskActivityFeed } from "@/components/tasks/details/task-activity-feed";
+import type { TaskCommentRecord } from "@/lib/tasks/comments";
 import { formatDate } from "@/lib/format";
 import { formatDurationHuman } from "@/lib/task-timer";
 import type { TaskDetailProfile } from "@/lib/tasks/types";
+import type { TaskPreviewAudit } from "@/components/tasks/preview/use-task-preview-data";
+import type { TaskTimeEntry } from "@/lib/tasks/types";
 
-type TaskDetailsMetaSidebarProps = {
+type TaskDetailsSidebarProps = {
   assignees: TaskDetailProfile[];
   createdBy: TaskDetailProfile | null;
+  folderName: string | null;
+  estimatedHours: number | null;
+  dueDate: string | null;
+  priority: string;
   todaySeconds: number;
   totalSeconds: number;
   createdAt?: string;
   updatedAt?: string;
-  folderName: string | null;
-  estimatedHours: number | null;
-  dueDate: string | null;
+  timeEntries: TaskTimeEntry[];
+  comments: TaskCommentRecord[];
+  audits: TaskPreviewAudit[];
+  nameOf: (id: string | null | undefined) => string;
+  noteSlot?: ReactNode;
 };
 
-export function TaskDetailsMetaSidebar({
+function DetailRow({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof User;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted-foreground">
+        <Icon className="size-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
+        <div className="mt-0.5 text-sm font-medium text-foreground">{value}</div>
+      </div>
+    </div>
+  );
+}
+
+export function TaskDetailsSidebar({
   assignees,
   createdBy,
+  folderName,
+  estimatedHours,
+  dueDate,
+  priority,
   todaySeconds,
   totalSeconds,
   createdAt,
   updatedAt,
-  folderName,
-  estimatedHours,
-  dueDate,
-}: TaskDetailsMetaSidebarProps) {
+  timeEntries,
+  comments,
+  audits,
+  nameOf,
+  noteSlot,
+}: TaskDetailsSidebarProps) {
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
-        <h3 className="mb-4 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          Details
-        </h3>
-        <dl className="space-y-4 text-sm">
-          <div>
-            <dt className="text-xs text-muted-foreground">Assignee</dt>
-            <dd className="mt-2">
-              {assignees.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Unassigned</p>
+      <DetailCard title="Details">
+        <div className="space-y-4">
+          <DetailRow
+            icon={Users}
+            label="Assignees"
+            value={
+              assignees.length === 0 ? (
+                <span className="font-normal text-muted-foreground">Unassigned</span>
               ) : (
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {assignees.map((a) => (
-                    <div key={a.id} className="flex items-center gap-2.5">
+                    <div key={a.id} className="flex items-center gap-2">
                       <ProfileAvatar
                         userId={a.id}
                         name={a.full_name}
                         avatarUrl={a.avatar_url}
                         email={a.email}
-                        size="md"
+                        size="xs"
                         eager
                       />
-                      <div className="min-w-0">
-                        <p className="truncate font-medium text-foreground">{a.full_name}</p>
-                        {a.job_title && (
-                          <p className="truncate text-xs text-muted-foreground">{a.job_title}</p>
-                        )}
-                      </div>
+                      <span className="truncate text-sm font-medium">{a.full_name}</span>
                     </div>
                   ))}
                 </div>
-              )}
-            </dd>
-          </div>
+              )
+            }
+          />
 
           {createdBy && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Created by</dt>
-              <dd className="mt-2 flex items-center gap-2.5">
-                <ProfileAvatar
-                  userId={createdBy.id}
-                  name={createdBy.full_name}
-                  avatarUrl={createdBy.avatar_url}
-                  email={createdBy.email}
-                  size="md"
-                  eager
-                />
-                <div className="min-w-0">
-                  <p className="truncate font-medium text-foreground">{createdBy.full_name}</p>
-                  {createdBy.job_title && (
-                    <p className="truncate text-xs text-muted-foreground">{createdBy.job_title}</p>
-                  )}
-                </div>
-              </dd>
-            </div>
+            <DetailRow
+              icon={User}
+              label="Created by"
+              value={createdBy.full_name ?? "Unknown"}
+            />
           )}
 
-          <div>
-            <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock className="size-3.5" />
-              Time summary
-            </dt>
-            <dd className="mt-2 space-y-1 text-sm">
-              <p>
-                <span className="text-muted-foreground">Today: </span>
-                <span className="font-medium text-foreground">{formatDurationHuman(todaySeconds)}</span>
-              </p>
-              <p>
-                <span className="text-muted-foreground">Total: </span>
-                <span className="font-medium text-foreground">{formatDurationHuman(totalSeconds)}</span>
-              </p>
-            </dd>
-          </div>
+          <DetailRow
+            icon={Calendar}
+            label="Due date"
+            value={dueDate ? formatDate(dueDate) : <span className="font-normal text-muted-foreground">Not set</span>}
+          />
+
+          <DetailRow
+            icon={Flag}
+            label="Priority"
+            value={<span className="capitalize">{priority}</span>}
+          />
 
           {folderName && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Folder</dt>
-              <dd className="mt-0.5 font-medium text-foreground">{folderName}</dd>
-            </div>
-          )}
-
-          {dueDate && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Due date</dt>
-              <dd className="mt-0.5 font-medium text-foreground">{formatDate(dueDate)}</dd>
-            </div>
+            <DetailRow icon={FolderOpen} label="Folder" value={folderName} />
           )}
 
           {estimatedHours != null && (
-            <div>
-              <dt className="text-xs text-muted-foreground">Estimated time</dt>
-              <dd className="mt-0.5 font-medium text-foreground">{estimatedHours}h</dd>
-            </div>
+            <DetailRow icon={Hourglass} label="Estimate" value={`${estimatedHours}h`} />
           )}
 
-          {(createdAt || updatedAt) && (
-            <div className="border-t border-border pt-3 text-xs text-muted-foreground">
-              {createdAt && <p>Created {formatDate(createdAt)}</p>}
-              {updatedAt && <p className="mt-0.5">Updated {formatDate(updatedAt)}</p>}
-            </div>
-          )}
-        </dl>
-      </div>
+          <DetailRow
+            icon={Clock}
+            label="Time logged"
+            value={
+              <div className="space-y-0.5 text-sm font-medium">
+                <p>
+                  <span className="font-normal text-muted-foreground">Today: </span>
+                  {formatDurationHuman(todaySeconds)}
+                </p>
+                <p>
+                  <span className="font-normal text-muted-foreground">Total: </span>
+                  {formatDurationHuman(totalSeconds)}
+                </p>
+              </div>
+            }
+          />
+        </div>
+
+        {(createdAt || updatedAt) && (
+          <p className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
+            {createdAt && <>Created {formatDate(createdAt)}</>}
+            {createdAt && updatedAt && " · "}
+            {updatedAt && <>Updated {formatDate(updatedAt)}</>}
+          </p>
+        )}
+      </DetailCard>
+
+      <DetailCard title="Activity">
+        <TaskActivityFeed
+          timeEntries={timeEntries}
+          comments={comments}
+          audits={audits}
+          nameOf={nameOf}
+          sortDescending
+          showHeader={false}
+          previewCount={8}
+        />
+      </DetailCard>
+
+      {noteSlot && (
+        <DetailCard title="Internal note">
+          {noteSlot}
+        </DetailCard>
+      )}
     </div>
   );
 }

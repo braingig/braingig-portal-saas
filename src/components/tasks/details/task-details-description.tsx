@@ -6,11 +6,13 @@ import type { TaskOrgMember } from "@/lib/tasks/types";
 
 type TaskDetailsDescriptionProps = {
   description: string | null;
-  note: string | null;
+  note?: string | null;
   members: TaskOrgMember[];
   onDescriptionChange: (value: string) => void | Promise<void>;
-  onNoteChange: (value: string) => void | Promise<void>;
+  onNoteChange?: (value: string) => void | Promise<void>;
   bare?: boolean;
+  descriptionOnly?: boolean;
+  noteOnly?: boolean;
 };
 
 export function TaskDetailsDescription({
@@ -20,6 +22,8 @@ export function TaskDetailsDescription({
   onDescriptionChange,
   onNoteChange,
   bare = false,
+  descriptionOnly = false,
+  noteOnly = false,
 }: TaskDetailsDescriptionProps) {
   const descriptionTimer = useRef<ReturnType<typeof setTimeout>>();
   const noteTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -36,7 +40,7 @@ export function TaskDetailsDescription({
       clearTimeout(descriptionTimer.current);
       void onDescriptionChange(pendingDescription.current);
     }
-    if (noteTimer.current) {
+    if (noteTimer.current && onNoteChange) {
       clearTimeout(noteTimer.current);
       void onNoteChange(pendingNote.current);
     }
@@ -49,6 +53,7 @@ export function TaskDetailsDescription({
   }
 
   function debouncedNote(value: string) {
+    if (!onNoteChange) return;
     pendingNote.current = value;
     clearTimeout(noteTimer.current);
     noteTimer.current = setTimeout(() => onNoteChange(value), 600);
@@ -82,14 +87,33 @@ export function TaskDetailsDescription({
   );
 
   if (bare) {
+    if (noteOnly && onNoteChange) return <>{noteEditor}</>;
     return (
       <div className="space-y-5">
-        {descriptionEditor}
-        <div>
-          <p className="mb-2 text-xs font-medium text-muted-foreground">Internal note</p>
-          {noteEditor}
-        </div>
+        {!noteOnly && descriptionEditor}
+        {!descriptionOnly && onNoteChange && (
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Internal note</p>
+            {noteEditor}
+          </div>
+        )}
       </div>
+    );
+  }
+
+  if (noteOnly && onNoteChange) {
+    return (
+      <TaskDetailsSection title="Internal note" icon={StickyNote}>
+        {noteEditor}
+      </TaskDetailsSection>
+    );
+  }
+
+  if (descriptionOnly) {
+    return (
+      <TaskDetailsSection title="Description" icon={FileText}>
+        {descriptionEditor}
+      </TaskDetailsSection>
     );
   }
 
@@ -99,9 +123,11 @@ export function TaskDetailsDescription({
         {descriptionEditor}
       </TaskDetailsSection>
 
-      <TaskDetailsSection title="Note" icon={StickyNote}>
-        {noteEditor}
-      </TaskDetailsSection>
+      {onNoteChange && (
+        <TaskDetailsSection title="Note" icon={StickyNote}>
+          {noteEditor}
+        </TaskDetailsSection>
+      )}
     </div>
   );
 }

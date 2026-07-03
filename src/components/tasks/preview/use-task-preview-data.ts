@@ -425,6 +425,30 @@ export function useTaskPreviewData(
 
   const reload = useCallback(() => loadData({ silent: true }), [loadData]);
 
+  const saveNote = useCallback(async (value: string, previous: string) => {
+    if (!user || !task || !orgId) return;
+    if (value === previous) return;
+
+    const ok = await patchTask({ note: value });
+    if (!ok) return;
+
+    const authorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+    try {
+      await notifyTaskMentions({
+        mentionIds: extractMentionIdsFromHtml(value, mentionMembers),
+        previousMentionIds: extractMentionIdsFromHtml(previous, mentionMembers),
+        authorId: user.id,
+        authorName,
+        taskId: task.id,
+        taskTitle: task.title,
+        orgId,
+        context: "note",
+      });
+    } catch (err) {
+      console.warn("Mention notification failed:", err);
+    }
+  }, [user, task, orgId, profiles, mentionMembers, patchTask]);
+
   return {
     user,
     orgId,
@@ -436,6 +460,7 @@ export function useTaskPreviewData(
     flatComments,
     mentionMembers,
     assignees,
+    profiles,
     timeEntries,
     audits,
     attachmentCount,
@@ -449,6 +474,7 @@ export function useTaskPreviewData(
     loadData: reload,
     patchTask,
     saveDescription,
+    saveNote,
     postComment,
     updateComment,
     removeComment,

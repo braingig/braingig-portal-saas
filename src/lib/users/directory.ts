@@ -210,6 +210,16 @@ export async function updateMemberPermissions(
   if (error) throw error;
 }
 
+export async function revokeOrgInvite(orgId: string, inviteId: string): Promise<void> {
+  const { error } = await supabase
+    .from("organization_invites")
+    .delete()
+    .eq("id", inviteId)
+    .eq("organization_id", orgId);
+
+  if (error) throw error;
+}
+
 export async function createWorkspaceInvite(
   orgId: string,
   invitedBy: string,

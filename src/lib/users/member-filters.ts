@@ -13,7 +13,7 @@ export type MemberFilters = {
 export function matchesMemberQuery(member: OrgMember, query: string) {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [member.fullName, member.email, member.jobTitle]
+  return [member.fullName, member.email]
     .filter(Boolean)
     .some((value) => value!.toLowerCase().includes(q));
 }

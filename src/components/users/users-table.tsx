@@ -11,6 +11,7 @@ type UsersTableProps = {
   busyUserId: string | null;
   showWorkspace: boolean;
   memberWorkspaces: Map<string, string[]>;
+  searchQuery: string;
   statusOptions: { value: MemberStatus; label: string }[];
   roleOptions: { value: AppRole; label: string }[];
   hasFilters: boolean;
@@ -28,6 +29,7 @@ export function UsersTable({
   busyUserId,
   showWorkspace,
   memberWorkspaces,
+  searchQuery,
   statusOptions,
   roleOptions,
   hasFilters,
@@ -84,6 +86,7 @@ export function UsersTable({
             canEdit={canEdit}
             showWorkspace={showWorkspace}
             workspaces={memberWorkspaces.get(member.userId) ?? []}
+            searchQuery={searchQuery}
             statusOptions={statusOptions}
             roleOptions={roleOptions}
             onSelect={onSelectMember}

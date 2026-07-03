@@ -14,9 +14,9 @@ type TaskDetailsSectionProps = {
   bare?: boolean;
 };
 
+/** Page section card — matches project DetailCard styling. */
 export function TaskDetailsSection({
   title,
-  icon: Icon,
   count,
   description,
   actions,
@@ -29,19 +29,17 @@ export function TaskDetailsSection({
     return <div className={className}>{children}</div>;
   }
 
+  const label = count !== undefined ? `${title} (${count})` : title;
+
   return (
     <section
       id={id}
-      className={cn("rounded-xl border border-border bg-card shadow-sm", className)}
+      className={cn("rounded-xl border border-border bg-card p-5 shadow-soft", className)}
     >
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border px-5 py-4">
+      <div className="mb-4 flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="flex items-center gap-2 text-xs font-semibold text-foreground">
-            {Icon && <Icon className="size-4 shrink-0 text-brand" />}
-            {title}
-            {count !== undefined && (
-              <span className="text-muted-foreground">({count})</span>
-            )}
+          <h2 className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            {label}
           </h2>
           {description && (
             <p className="mt-1 text-xs text-muted-foreground">{description}</p>
@@ -49,7 +47,7 @@ export function TaskDetailsSection({
         </div>
         {actions}
       </div>
-      <div className="overflow-visible p-5">{children}</div>
+      {children}
     </section>
   );
 }

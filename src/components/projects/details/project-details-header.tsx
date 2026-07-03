@@ -1,6 +1,7 @@
-import { FolderKanban, Pencil, Trash2 } from "lucide-react";
+import { FolderKanban, Pencil, Trash2, Users } from "lucide-react";
 import { BackLink } from "@/components/ui/back-link";
 import { ProjectStatusPicker } from "@/components/projects/project-status-picker";
+import { formatCurrency, formatDate } from "@/lib/format";
 import type { ProjectRecord } from "@/lib/projects/types";
 import { dsProjectTitle } from "@/lib/design-system";
 import { cn } from "@/lib/utils";
@@ -38,6 +39,21 @@ export function ProjectDetailsHeader({
                 size="md"
               />
             </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-[52px] text-xs text-muted-foreground">
+            {project.client && (
+              <span className="inline-flex items-center gap-1.5 font-medium text-foreground/80">
+                <Users className="size-3.5" />
+                {project.client}
+              </span>
+            )}
+            {project.budget != null && (
+              <span>Budget {formatCurrency(project.budget)}</span>
+            )}
+            {project.due_date && (
+              <span>Due {formatDate(project.due_date)}</span>
+            )}
           </div>
         </div>
 

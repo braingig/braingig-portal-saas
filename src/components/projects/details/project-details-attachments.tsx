@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import { Paperclip } from "lucide-react";
+import { CollapsibleDetailCard } from "@/components/projects/details/collapsible-detail-card";
 import { DetailCard } from "@/components/projects/details/detail-card";
 import { FilePreview } from "@/components/ui/file-preview";
 import {
@@ -50,25 +52,45 @@ export function ProjectDetailsAttachments({ project, orgId }: ProjectDetailsAtta
     );
   }
 
+  const grid = attachments.length === 0 ? (
+    <p className="text-sm text-muted-foreground">No files attached to this project.</p>
+  ) : (
+    <div className="grid gap-3 sm:grid-cols-2">
+      {attachments.map((attachment) => (
+        <FilePreview
+          key={attachment.id}
+          name={attachment.name}
+          url={attachment.url}
+          downloadUrl={attachment.downloadUrl}
+          mimeType={attachment.mime_type}
+          sizeBytes={attachment.size_bytes || undefined}
+        />
+      ))}
+    </div>
+  );
+
   if (attachments.length === 0) {
-    return null;
+    return (
+      <CollapsibleDetailCard
+        title="Attachments"
+        icon={Paperclip}
+        hint="View attachments"
+        defaultOpen={false}
+      >
+        {grid}
+      </CollapsibleDetailCard>
+    );
   }
 
   return (
-    <DetailCard title="Attachments">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-        {attachments.map((attachment) => (
-          <FilePreview
-            key={attachment.id}
-            name={attachment.name}
-            url={attachment.url}
-            downloadUrl={attachment.downloadUrl}
-            mimeType={attachment.mime_type}
-            sizeBytes={attachment.size_bytes || undefined}
-            size="dense"
-          />
-        ))}
-      </div>
-    </DetailCard>
+    <CollapsibleDetailCard
+      title="Attachments"
+      icon={Paperclip}
+      count={attachments.length}
+      hint={`View ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`}
+      defaultOpen={attachments.length <= 2}
+    >
+      {grid}
+    </CollapsibleDetailCard>
   );
 }

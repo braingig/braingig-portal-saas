@@ -4,12 +4,14 @@ import { buildTaskActivityItems } from "@/components/tasks/details/task-activity
 import type { TaskCommentRecord } from "@/lib/tasks/comments";
 import type { TaskPreviewAudit } from "@/components/tasks/preview/use-task-preview-data";
 import type { TaskTimeEntry } from "@/lib/tasks/types";
+import { cn } from "@/lib/utils";
 
 type TaskPreviewActivityPanelProps = {
   timeEntries: TaskTimeEntry[];
   comments: TaskCommentRecord[];
   audits: TaskPreviewAudit[];
   nameOf: (id: string | null | undefined) => string;
+  className?: string;
 };
 
 function timeAgo(iso: string) {
@@ -21,6 +23,7 @@ export function TaskPreviewActivityPanel({
   comments,
   audits,
   nameOf,
+  className,
 }: TaskPreviewActivityPanelProps) {
   const activity = useMemo(
     () => buildTaskActivityItems({
@@ -36,7 +39,10 @@ export function TaskPreviewActivityPanel({
   const visible = activity;
 
   return (
-    <aside className="flex w-[min(38%,340px)] shrink-0 flex-col border-l border-border/50 bg-surface/20">
+    <aside className={cn(
+      "flex w-full shrink-0 flex-col border-t border-border/40 bg-surface/20 lg:w-[min(38%,340px)] lg:border-l lg:border-t-0",
+      className,
+    )}>
       <div className="flex shrink-0 items-center border-b border-border/40 px-4 py-3">
         <h3 className="text-[13px] font-normal text-muted-foreground">Activity</h3>
       </div>

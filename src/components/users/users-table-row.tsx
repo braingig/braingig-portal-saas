@@ -1,4 +1,5 @@
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { HighlightedText } from "@/components/ui/highlighted-text";
 import { MemberPermissionsEditor } from "@/components/users/member-permissions-editor";
 import { MemberRoleMenu } from "@/components/users/member-role-menu";
 import { HoverTableSelect } from "@/components/users/hover-table-select";
@@ -20,6 +21,7 @@ type UsersTableRowProps = {
   canEdit: boolean;
   showWorkspace: boolean;
   workspaces: string[];
+  searchQuery: string;
   statusOptions: { value: MemberStatus; label: string }[];
   roleOptions: { value: AppRole; label: string }[];
   onSelect: (member: OrgMember) => void;
@@ -41,6 +43,7 @@ export function UsersTableRow({
   canEdit,
   showWorkspace,
   workspaces,
+  searchQuery,
   statusOptions,
   roleOptions,
   onSelect,
@@ -73,9 +76,15 @@ export function UsersTableRow({
           size="md"
         />
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium">{member.fullName ?? "Unnamed"}</p>
+          <p className="truncate text-sm font-medium">
+            <HighlightedText text={member.fullName ?? "Unnamed"} query={searchQuery} />
+          </p>
           <p className="truncate text-[10px] text-muted-foreground">
-            {member.email ?? member.jobTitle ?? "—"}
+            {member.email ? (
+              <HighlightedText text={member.email} query={searchQuery} />
+            ) : (
+              member.jobTitle ?? "—"
+            )}
           </p>
         </div>
       </div>

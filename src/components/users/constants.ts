@@ -34,6 +34,6 @@ export function tableGridClass(showWorkspace: boolean) {
 
 export function pendingGridClass(showWorkspace: boolean) {
   return showWorkspace
-    ? "min-w-[720px] grid-cols-[minmax(180px,1.4fr)_96px_120px_120px_72px]"
-    : "min-w-[600px] grid-cols-[minmax(180px,1.4fr)_96px_120px_72px]";
+    ? "min-w-[720px] grid-cols-[minmax(180px,1.4fr)_96px_120px_120px_40px]"
+    : "min-w-[600px] grid-cols-[minmax(180px,1.4fr)_96px_120px_40px]";
 }
