@@ -1,10 +1,10 @@
-import { Link } from "@tanstack/react-router";
 import { format, isPast, isToday } from "date-fns";
 import { Calendar, CheckCircle2, ChevronDown, ListPlus, Pencil, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnimatedCollapse, collapseChevronClass } from "@/components/ui/animated-collapse";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
+import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskStatusPicker } from "@/components/tasks/task-status-picker";
 import {
   tasksIconSm,
@@ -19,7 +19,7 @@ import {
 } from "@/components/tasks/tasks-page-styles";
 import { dsIconStroke } from "@/lib/design-system";
 import { filterSubtasksForSearch, taskTitleMatchesSearch } from "@/lib/tasks/search";
-import type { TaskListItem as TaskItem } from "@/lib/tasks/types";
+import type { TaskListItem as TaskItem, TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 /** Metadata columns — flex with explicit gaps for aligned status / assignee / due date */
@@ -46,6 +46,12 @@ type TaskListItemProps = {
 
 type TaskListItemGroupProps = TaskListItemProps & {
   subtasks?: TaskItem[];
+  quickAdd?: {
+    orgId: string;
+    userId: string;
+    members: TaskOrgMember[];
+    onCreated: () => void;
+  };
 };
 
 function dueDateLabel(dueDate: string) {
@@ -121,17 +127,15 @@ export function TaskListItemRow({
               <HighlightedText text={task.title} query={searchQuery} />
             </button>
           ) : (
-            <Link
-              to={`/tasks/${task.id}`}
+            <span
               className={cn(
                 "block w-full min-w-0 truncate text-left",
-                tasksTitleInteractive,
                 titleClass,
                 isDone && "text-muted-foreground/70 line-through",
               )}
             >
               <HighlightedText text={task.title} query={searchQuery} />
-            </Link>
+            </span>
           )}
         </div>
 
@@ -227,16 +231,28 @@ export function TaskListItemGroup({
   onEdit,
   onAddSubtask,
   onOpenTask,
+  quickAdd,
 }: TaskListItemGroupProps) {
   const [expanded, setExpanded] = useState(false);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const isSearching = Boolean(searchQuery.trim());
   const visibleSubtasks = isSearching ? filterSubtasksForSearch(subtasks, searchQuery) : subtasks;
   const hasSubtasks = isSearching ? visibleSubtasks.length > 0 : subtasks.length > 0;
   const subtaskCount = isSearching ? visibleSubtasks.length : subtasks.length;
+  const useInlineQuickAdd = Boolean(quickAdd);
 
   useEffect(() => {
     if (isSearching && visibleSubtasks.length > 0) setExpanded(true);
   }, [isSearching, visibleSubtasks.length, searchQuery]);
+
+  function handleAddSubtask() {
+    if (useInlineQuickAdd) {
+      setQuickAddOpen(true);
+      setExpanded(true);
+      return;
+    }
+    onAddSubtask?.(task);
+  }
 
   return (
     <div>
@@ -244,16 +260,35 @@ export function TaskListItemGroup({
         task={task}
         searchQuery={searchQuery}
         nestedInFolder={nestedInFolder}
-        showBorder={!hasSubtasks}
+        showBorder={!hasSubtasks && !quickAddOpen}
         onToggleComplete={onToggleComplete}
         onStatusChange={onStatusChange}
         onEdit={onEdit}
-        onAddSubtask={onAddSubtask}
+        onAddSubtask={onAddSubtask || useInlineQuickAdd ? handleAddSubtask : undefined}
         onOpenTask={onOpenTask}
         subtaskCount={subtaskCount}
         subtasksExpanded={expanded}
         onToggleSubtasks={hasSubtasks ? () => setExpanded((v) => !v) : undefined}
       />
+
+      {quickAddOpen && quickAdd && (
+        <QuickTaskAddRow
+          orgId={quickAdd.orgId}
+          userId={quickAdd.userId}
+          members={quickAdd.members}
+          projectId={task.project_id ?? undefined}
+          milestoneId={task.milestone_id ?? undefined}
+          parentTaskId={task.id}
+          position={subtasks.length}
+          isSubtask
+          nestedInFolder={nestedInFolder}
+          onSuccess={() => {
+            setQuickAddOpen(false);
+            quickAdd.onCreated();
+          }}
+          onCancel={() => setQuickAddOpen(false)}
+        />
+      )}
 
       <AnimatedCollapse open={expanded && hasSubtasks} contentClassName="pb-1">
         {visibleSubtasks.map((sub, index) => (

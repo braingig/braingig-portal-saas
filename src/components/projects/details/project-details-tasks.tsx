@@ -1,11 +1,11 @@
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
 import { ChevronDown, FolderKanban, FolderPlus, Layers, Plus } from "lucide-react";
 import { CreateProjectFolderModal } from "@/components/projects/create-project-folder-modal";
 import { CollapsibleDetailCard } from "@/components/projects/details/collapsible-detail-card";
 import { DetailCard } from "@/components/projects/details/detail-card";
 import { TaskStatusBadge } from "@/components/projects/details/task-status-badge";
 import { CreateTaskModal } from "@/components/tasks/create-task-modal";
+import { TaskPreviewModal } from "@/components/tasks/preview/task-preview-modal";
 import { buildProjectFolders, tasksInFolder } from "@/lib/projects/folders";
 import { countDoneTasks, countOpenTasks } from "@/lib/projects/task-status";
 import type { ProjectMilestone, ProjectTask } from "@/lib/projects/types";
@@ -54,9 +54,11 @@ function TaskProgress({ tasks }: { tasks: ProjectTask[] }) {
 function FolderTaskList({
   folderTasks,
   onAddTask,
+  onOpenTask,
 }: {
   folderTasks: ProjectTask[];
   onAddTask: () => void;
+  onOpenTask: (taskId: string) => void;
 }) {
   const [showAll, setShowAll] = useState(false);
   const canExpand = folderTasks.length > FOLDER_PREVIEW_LIMIT;
@@ -91,16 +93,17 @@ function FolderTaskList({
       >
         <div className="divide-y divide-border/30">
           {visibleTasks.map((task) => (
-            <Link
+            <button
               key={task.id}
-              to={`/tasks/${task.id}`}
-              className="flex items-center justify-between gap-3 px-4 py-2.5 transition-colors hover:bg-surface/50"
+              type="button"
+              onClick={() => onOpenTask(task.id)}
+              className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface/50"
             >
               <span className="min-w-0 flex-1 truncate text-sm text-foreground">
                 {task.title}
               </span>
               <TaskStatusBadge status={task.status} />
-            </Link>
+            </button>
           ))}
         </div>
         {useScroll && (
@@ -137,9 +140,11 @@ export function ProjectDetailsTasks({
 }: ProjectDetailsTasksProps) {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [previewTaskId, setPreviewTaskId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
 
-  const folders = useMemo(() => buildProjectFolders(milestones, tasks), [milestones, tasks]);
+  const milestoneFolders = useMemo(() => buildProjectFolders(milestones), [milestones]);
+  const unfiledTasks = useMemo(() => tasksInFolder(tasks, null), [tasks]);
   const hasRealFolders = milestones.length > 0;
 
   function openAddTask(folderId: string | null) {
@@ -163,11 +168,31 @@ export function ProjectDetailsTasks({
       {tasks.length > 0 && <TaskProgress tasks={tasks} />}
 
       <div className="space-y-3">
-        {folders.map((folder) => {
+        {unfiledTasks.length > 0 && (
+          <div className="overflow-hidden rounded-lg border border-border bg-surface/20">
+            <div className="flex items-center justify-end gap-2 border-b border-border/40 px-4 py-2">
+              <button
+                type="button"
+                onClick={() => openAddTask(null)}
+                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand px-2 py-1 text-[10px] font-semibold text-brand-foreground hover:brightness-110"
+              >
+                <Plus className="size-3" />
+                Add task
+              </button>
+            </div>
+            <FolderTaskList
+              folderTasks={unfiledTasks}
+              onAddTask={() => openAddTask(null)}
+              onOpenTask={setPreviewTaskId}
+            />
+          </div>
+        )}
+
+        {milestoneFolders.map((folder) => {
           const folderTasks = tasksInFolder(tasks, folder.id);
 
           return (
-            <div key={folder.id ?? "default"} className="overflow-hidden rounded-lg border border-border bg-surface/20">
+            <div key={folder.id} className="overflow-hidden rounded-lg border border-border bg-surface/20">
               <div className="flex items-center justify-between gap-2 border-b border-border/40 px-4 py-2.5">
                 <div className="flex min-w-0 items-center gap-2">
                   <FolderKanban className="size-4 shrink-0 text-brand" />
@@ -186,7 +211,11 @@ export function ProjectDetailsTasks({
                 </button>
               </div>
 
-              <FolderTaskList folderTasks={folderTasks} onAddTask={() => openAddTask(folder.id)} />
+              <FolderTaskList
+                folderTasks={folderTasks}
+                onAddTask={() => openAddTask(folder.id)}
+                onOpenTask={setPreviewTaskId}
+              />
             </div>
           );
         })}
@@ -222,7 +251,11 @@ export function ProjectDetailsTasks({
           title="Folders & Tasks"
           icon={Layers}
           count={tasks.length}
-          hint={`View ${tasks.length} task${tasks.length === 1 ? "" : "s"} across ${folders.length} folder${folders.length === 1 ? "" : "s"}`}
+          hint={
+            milestoneFolders.length > 0
+              ? `View ${tasks.length} task${tasks.length === 1 ? "" : "s"} across ${milestoneFolders.length} folder${milestoneFolders.length === 1 ? "" : "s"}`
+              : `${tasks.length} task${tasks.length === 1 ? "" : "s"} in this project`
+          }
           action={newFolderButton}
           defaultOpen={tasks.length <= 3}
         >
@@ -248,6 +281,14 @@ export function ProjectDetailsTasks({
         defaultProjectId={projectId}
         defaultMilestoneId={activeFolderId ?? undefined}
         onSuccess={onChange}
+      />
+
+      <TaskPreviewModal
+        taskId={previewTaskId}
+        open={Boolean(previewTaskId)}
+        onOpenChange={(open) => { if (!open) setPreviewTaskId(null); }}
+        onTaskChange={setPreviewTaskId}
+        onUpdated={onChange}
       />
     </>
   );

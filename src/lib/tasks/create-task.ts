@@ -102,6 +102,8 @@ export async function createTask({
     partialSave: usedFallback,
   });
 
+  const taskTitle = values.title.trim();
+
   if (values.assigneeIds.length > 0) {
     await sendTaskAssignedEmails({
       orgId,

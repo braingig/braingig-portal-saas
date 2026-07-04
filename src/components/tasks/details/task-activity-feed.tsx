@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { format } from "date-fns";
 import { Timer } from "lucide-react";
 import type { TaskCommentRecord } from "@/lib/tasks/comments";
+import { formatTaskAuditMessage } from "@/lib/tasks/task-audit";
 import { formatDurationHuman } from "@/lib/task-timer";
 import type { TaskTimeEntry } from "@/lib/tasks/types";
 
@@ -35,14 +36,19 @@ type TaskActivityFeedProps = {
   nameOf: (userId: string | null | undefined) => string;
   previewCount?: number;
   sortDescending?: boolean;
+  excludeComments?: boolean;
   className?: string;
   showHeader?: boolean;
 };
 
 const DEFAULT_PREVIEW = 5;
 
-function activityWhen(iso: string) {
+export function formatActivityTimestamp(iso: string) {
   return format(new Date(iso), "MMM d 'at' h:mm a");
+}
+
+function activityWhen(iso: string) {
+  return formatActivityTimestamp(iso);
 }
 
 export function buildTaskActivityItems({
@@ -52,6 +58,7 @@ export function buildTaskActivityItems({
   notifs = [],
   nameOf,
   sortDescending = false,
+  excludeComments = false,
 }: Omit<TaskActivityFeedProps, "previewCount" | "className" | "showHeader">): TaskActivityItem[] {
   const items: TaskActivityItem[] = [];
 
@@ -67,27 +74,22 @@ export function buildTaskActivityItems({
     });
   }
 
-  for (const comment of comments) {
-    const mentioned = (comment.mentions ?? []).length > 0;
-    items.push({
-      id: `comment-${comment.id}`,
-      at: comment.created_at,
-      text: mentioned
-        ? `${nameOf(comment.author_id)} mentioned someone`
-        : `${nameOf(comment.author_id)} commented`,
-    });
+  if (!excludeComments) {
+    for (const comment of comments) {
+      const mentioned = (comment.mentions ?? []).length > 0;
+      items.push({
+        id: `comment-${comment.id}`,
+        at: comment.created_at,
+        text: mentioned
+          ? `${nameOf(comment.author_id)} mentioned someone`
+          : `${nameOf(comment.author_id)} commented`,
+      });
+    }
   }
 
   for (const row of audits) {
-    const meta = row.metadata ?? {};
-    let text = `${nameOf(row.actor_id)} updated this task`;
-    if (row.action === "task.created") text = `${nameOf(row.actor_id)} created this task`;
-    else if (row.action === "task.updated" && meta.status) {
-      text = `${nameOf(row.actor_id)} changed status to ${String(meta.status).replace(/_/g, " ")}`;
-    } else if (row.action === "task.updated" && meta.assigneeCount !== undefined) {
-      text = `${nameOf(row.actor_id)} updated assignees`;
-    }
-    items.push({ id: `audit-${row.id}`, at: row.created_at, text });
+    const { text, detail } = formatTaskAuditMessage(row, nameOf);
+    items.push({ id: `audit-${row.id}`, at: row.created_at, text, detail });
   }
 
   for (const n of notifs) {
@@ -108,14 +110,23 @@ export function TaskActivityFeed({
   nameOf,
   previewCount = DEFAULT_PREVIEW,
   sortDescending = false,
+  excludeComments = false,
   className,
   showHeader = true,
 }: TaskActivityFeedProps) {
   const [expanded, setExpanded] = useState(false);
 
   const activity = useMemo(
-    () => buildTaskActivityItems({ timeEntries, comments, audits, notifs, nameOf, sortDescending }),
-    [timeEntries, comments, audits, notifs, nameOf, sortDescending],
+    () => buildTaskActivityItems({
+      timeEntries,
+      comments,
+      audits,
+      notifs,
+      nameOf,
+      sortDescending,
+      excludeComments,
+    }),
+    [timeEntries, comments, audits, notifs, nameOf, sortDescending, excludeComments],
   );
 
   const visible = expanded ? activity : activity.slice(0, previewCount);

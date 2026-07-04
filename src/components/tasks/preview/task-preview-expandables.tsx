@@ -1,63 +1,71 @@
 import { useRef, useState } from "react";
-import { Layers, ListPlus, Paperclip, Plus } from "lucide-react";
+import { CheckSquare, Layers, ListPlus, Paperclip, Plus } from "lucide-react";
 import { TaskPreviewAttachments } from "@/components/tasks/preview/task-preview-attachments";
-import { TaskPreviewComments } from "@/components/tasks/preview/task-preview-comments";
+import { TaskPreviewChecklist } from "@/components/tasks/preview/task-preview-checklist";
 import { TaskPreviewSection } from "@/components/tasks/preview/task-preview-section";
 import { TaskPreviewSubtasks } from "@/components/tasks/preview/task-preview-subtasks";
 import { TaskPreviewTimeCard } from "@/components/tasks/preview/task-preview-time-card";
-import type { TaskCommentNode } from "@/lib/tasks/comments";
+import { TaskPreviewTimeDetails } from "@/components/tasks/preview/task-preview-time-details";
 import type {
+  TaskDetailProfile,
   TaskDetailRecord,
   TaskListItem,
   TaskOrgMember,
+  TaskTimeEntry,
 } from "@/lib/tasks/types";
+import type { TaskChecklistItem } from "@/lib/tasks/checklist";
 
 type TaskPreviewExpandablesProps = {
   task: TaskDetailRecord;
   orgId: string;
   userId: string;
+  members: TaskOrgMember[];
   subtasks: TaskListItem[];
-  comments: TaskCommentNode[];
-  mentionMembers: TaskOrgMember[];
-  currentUserId?: string;
-  canModerate: boolean;
+  checklistItems: TaskChecklistItem[];
   attachmentCount: number;
-  commentCount: number;
   trackedTotal: number;
   isTracking: boolean;
   sessionTime: number;
   isAssignee: boolean;
+  timerStartBlocked: boolean;
+  timeEntries: TaskTimeEntry[];
+  profiles: TaskDetailProfile[];
+  assigneeIds: string[];
   onOpenTask: (id: string) => void;
   onReload: () => void;
-  onCommentSubmit: (body: string, parentId?: string | null) => Promise<void>;
-  onCommentUpdate: (id: string, body: string) => Promise<void>;
-  onCommentDelete: (id: string) => Promise<void>;
   onToggleTimer: () => void;
+  onAddChecklistItem: (title: string, assigneeId: string | null) => Promise<void>;
+  onToggleChecklistItem: (item: TaskChecklistItem) => void;
+  onRemoveChecklistItem: (item: TaskChecklistItem) => void;
+  onAssignChecklistItem: (item: TaskChecklistItem, assigneeId: string | null) => void;
 };
 
 export function TaskPreviewExpandables({
   task,
   orgId,
   userId,
+  members,
   subtasks,
-  comments,
-  mentionMembers,
-  currentUserId,
-  canModerate,
+  checklistItems,
   attachmentCount,
-  commentCount,
   trackedTotal,
   isTracking,
   sessionTime,
   isAssignee,
+  timerStartBlocked,
+  timeEntries,
+  profiles,
+  assigneeIds,
   onOpenTask,
   onReload,
-  onCommentSubmit,
-  onCommentUpdate,
-  onCommentDelete,
   onToggleTimer,
+  onAddChecklistItem,
+  onToggleChecklistItem,
+  onRemoveChecklistItem,
+  onAssignChecklistItem,
 }: TaskPreviewExpandablesProps) {
   const [createSubtaskOpen, setCreateSubtaskOpen] = useState(false);
+  const [createChecklistOpen, setCreateChecklistOpen] = useState(false);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   return (
@@ -77,10 +85,38 @@ export function TaskPreviewExpandables({
             subtasks={subtasks}
             orgId={orgId}
             userId={userId}
+            members={members}
             onChange={onReload}
             onOpenTask={onOpenTask}
             createOpen={createSubtaskOpen}
             onCreateOpenChange={setCreateSubtaskOpen}
+          />
+        </TaskPreviewSection>
+      )}
+
+      {!task.parent_id && (
+        <TaskPreviewSection
+          icon={CheckSquare}
+          label={
+            checklistItems.length > 0
+              ? `Checklist (${checklistItems.filter((i) => i.is_completed).length}/${checklistItems.length})`
+              : "Add checklist"
+          }
+          action={{
+            icon: Plus,
+            label: "Add checklist item",
+            onClick: () => setCreateChecklistOpen(true),
+          }}
+        >
+          <TaskPreviewChecklist
+            items={checklistItems}
+            members={members}
+            createOpen={createChecklistOpen}
+            onCreateOpenChange={setCreateChecklistOpen}
+            onToggle={onToggleChecklistItem}
+            onDelete={onRemoveChecklistItem}
+            onAdd={onAddChecklistItem}
+            onAssigneeChange={onAssignChecklistItem}
           />
         </TaskPreviewSection>
       )}
@@ -109,23 +145,18 @@ export function TaskPreviewExpandables({
           totalSeconds={trackedTotal}
           isTracking={isTracking}
           sessionSeconds={sessionTime}
-          canStartTimer={isAssignee}
+          isAssignee={isAssignee}
+          timerStartBlocked={timerStartBlocked}
           onToggleTimer={onToggleTimer}
         />
-      </TaskPreviewSection>
-
-      <TaskPreviewSection
-        icon={Plus}
-        label={commentCount > 0 ? `Comments (${commentCount})` : "Comments"}
-      >
-        <TaskPreviewComments
-          comments={comments}
-          members={mentionMembers}
-          currentUserId={currentUserId}
-          canModerate={canModerate}
-          onSubmit={onCommentSubmit}
-          onUpdate={onCommentUpdate}
-          onDelete={onCommentDelete}
+        <TaskPreviewTimeDetails
+          taskId={task.id}
+          timeEntries={timeEntries}
+          profiles={profiles}
+          assigneeIds={assigneeIds}
+          isTracking={isTracking}
+          sessionTime={sessionTime}
+          currentUserId={userId}
         />
       </TaskPreviewSection>
     </div>

@@ -1,30 +1,18 @@
 export type ProjectFolderView = {
-  id: string | null;
+  id: string;
   title: string;
-  isDefault?: boolean;
 };
 
 type FolderTask = { milestone_id?: string | null };
 
+/** Real milestone folders only — unfiled tasks are shown at project level. */
 export function buildProjectFolders(
   milestones: { id: string; title: string }[],
-  tasks: FolderTask[],
 ): ProjectFolderView[] {
-  if (milestones.length === 0) {
-    return [{ id: null, title: "General", isDefault: true }];
-  }
-
-  const folders: ProjectFolderView[] = milestones.map((m) => ({
+  return milestones.map((m) => ({
     id: m.id,
     title: m.title,
   }));
-
-  const hasUnfiled = tasks.some((t) => !t.milestone_id);
-  if (hasUnfiled) {
-    folders.unshift({ id: null, title: "No folder", isDefault: true });
-  }
-
-  return folders;
 }
 
 export function tasksInFolder<T extends FolderTask>(tasks: T[], folderId: string | null): T[] {

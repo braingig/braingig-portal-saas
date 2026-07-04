@@ -1,6 +1,12 @@
 import { Users } from "lucide-react";
 import { TaskDetailsSection } from "@/components/tasks/details/task-details-section";
 import { TaskPerson } from "@/components/tasks/details/task-person";
+import {
+  previewTimeEmpty,
+  previewTimeTable,
+  previewTimeTableHead,
+} from "@/components/tasks/preview/task-preview-styles";
+import { cn } from "@/lib/utils";
 import { formatDurationHuman } from "@/lib/task-timer";
 import type { TaskWorkerRow } from "@/lib/tasks/types";
 
@@ -11,23 +17,23 @@ type TaskDetailsWorkersProps = {
 
 export function TaskDetailsWorkers({ workers, bare = false }: TaskDetailsWorkersProps) {
   const content = workers.length === 0 ? (
-    <p className="text-sm text-muted-foreground">No one has logged time on this task yet.</p>
+    <p className={previewTimeEmpty}>No one has logged time on this task yet.</p>
   ) : (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[280px] text-sm">
+      <table className={cn(previewTimeTable, "min-w-[240px]")}>
         <thead>
-          <tr className="border-b border-border/30 text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-            <th className="pb-2 pr-4 font-semibold">Person</th>
-            <th className="pb-2 text-right font-semibold">Total time</th>
+          <tr className={previewTimeTableHead}>
+            <th className="pr-3 font-medium">Person</th>
+            <th className="text-right font-medium">Total time</th>
           </tr>
         </thead>
         <tbody>
           {workers.map((row) => (
             <tr key={row.profile.id} className="border-b border-border/20 last:border-0">
-              <td className="py-2.5 pr-4">
-                <TaskPerson profile={row.profile} size="sm" />
+              <td className="py-1.5 pr-3">
+                <TaskPerson profile={row.profile} size="xs" />
               </td>
-              <td className="py-2.5 text-right font-mono text-sm font-medium text-foreground">
+              <td className="py-1.5 text-right font-mono text-xs text-foreground">
                 {formatDurationHuman(row.totalSeconds)}
               </td>
             </tr>

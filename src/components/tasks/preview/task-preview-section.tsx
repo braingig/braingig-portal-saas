@@ -3,7 +3,7 @@ import type { LucideIcon } from "lucide-react";
 import { ChevronRight } from "lucide-react";
 import { AnimatedCollapse } from "@/components/ui/animated-collapse";
 import { TaskPreviewIconButton } from "@/components/tasks/preview/task-preview-icon-button";
-import { previewExpandedPanel } from "@/components/tasks/preview/task-preview-styles";
+import { previewExpandedPanel, previewFieldBlock } from "@/components/tasks/preview/task-preview-styles";
 import { cn } from "@/lib/utils";
 
 type SectionAction = {
@@ -43,12 +43,12 @@ export function TaskPreviewSection({
   }
 
   return (
-    <div>
+    <div className={previewFieldBlock}>
       <div className="flex items-center gap-0.5">
         <button
           type="button"
           onClick={() => setOpen(!open)}
-          className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:bg-surface/50 hover:text-foreground"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-md py-1.5 text-left text-[13px] text-muted-foreground transition-colors hover:text-foreground"
         >
           <ChevronRight
             className={cn(

@@ -3,11 +3,22 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { fetchProfileEmails } from "@/lib/profile-emails";
+import { isMissingColumnError } from "@/lib/projects/upload-attachment";
+import {
+  createTaskChecklistItem,
+  deleteTaskChecklistItem,
+  fetchTaskChecklistItems,
+  TASK_CHECKLIST_ASSIGNEE_MIGRATION_HINT,
+  TASK_CHECKLIST_MIGRATION_HINT,
+  updateTaskChecklistItem,
+  type TaskChecklistItem,
+} from "@/lib/tasks/checklist";
+import { logTaskAssigneeChange, logTaskFieldChange } from "@/lib/tasks/task-audit";
 import { listTaskAttachments } from "@/lib/tasks/attachments";
 import { extractMentionIdsFromHtml } from "@/lib/tasks/comment-mentions";
 import {
   buildCommentTree,
-  countComments,
+  countRootComments,
   createTaskComment,
   deleteTaskComment,
   fetchTaskComments,
@@ -20,9 +31,13 @@ import { fetchSubtaskListItems } from "@/lib/tasks/subtasks";
 import {
   getActiveTaskTimer,
   getTimerElapsedSeconds,
-  setActiveTaskTimer,
   subscribeTaskTimer,
 } from "@/lib/task-timer";
+import {
+  isTaskAssignee,
+  isTimerStartBlocked,
+  toggleTaskTimer,
+} from "@/lib/tasks/toggle-task-timer";
 import type {
   TaskDetailProfile,
   TaskDetailRecord,
@@ -31,6 +46,9 @@ import type {
   TaskTimeEntry,
 } from "@/lib/tasks/types";
 import { toast } from "sonner";
+
+export const TASK_START_DATE_MIGRATION_HINT =
+  "Run supabase/migrations/20260704_task_start_date.sql in your Supabase SQL Editor to save start dates.";
 
 export type TaskPreviewAudit = {
   id: string;
@@ -57,6 +75,7 @@ export function useTaskPreviewData(
   const [projectName, setProjectName] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [subtasks, setSubtasks] = useState<TaskListItem[]>([]);
+  const [checklistItems, setChecklistItems] = useState<TaskChecklistItem[]>([]);
   const [comments, setComments] = useState<TaskCommentNode[]>([]);
   const [flatComments, setFlatComments] = useState<Awaited<ReturnType<typeof fetchTaskComments>>>([]);
   const [mentionMembers, setMentionMembers] = useState<TaskOrgMember[]>([]);
@@ -68,6 +87,7 @@ export function useTaskPreviewData(
   const [totalTime, setTotalTime] = useState(0);
   const [sessionTime, setSessionTime] = useState(0);
   const [isTracking, setIsTracking] = useState(false);
+  const [timerStartBlocked, setTimerStartBlocked] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const onUpdatedRef = useRef(onUpdated);
@@ -90,9 +110,11 @@ export function useTaskPreviewData(
     if (active?.taskId === taskId) {
       setIsTracking(true);
       setSessionTime(getTimerElapsedSeconds(active));
+      setTimerStartBlocked(false);
     } else {
       setIsTracking(false);
       setSessionTime(0);
+      setTimerStartBlocked(isTimerStartBlocked(false));
     }
   }, [taskId]);
 
@@ -110,6 +132,7 @@ export function useTaskPreviewData(
         projectRes,
         folderRes,
         subtaskRows,
+        checklistRows,
         assigns,
         times,
         commentRows,
@@ -124,6 +147,7 @@ export function useTaskPreviewData(
           ? supabase.from("milestones").select("title").eq("id", t.milestone_id).maybeSingle()
           : Promise.resolve({ data: null }),
         fetchSubtaskListItems(taskId, orgId),
+        fetchTaskChecklistItems(taskId),
         supabase.from("task_assignees").select("user_id").eq("task_id", taskId),
         supabase
           .from("time_entries")
@@ -167,6 +191,7 @@ export function useTaskPreviewData(
       setProjectName(projectRes.data?.name ?? null);
       setFolderName(folderRes.data?.title ?? null);
       setSubtasks(subtaskRows);
+      setChecklistItems(checklistRows);
       setFlatComments(commentRows);
       setComments(buildCommentTree(commentRows));
       setMentionMembers(members);
@@ -192,6 +217,38 @@ export function useTaskPreviewData(
     clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => void loadDataRef.current({ silent: true }), 400);
   }, []);
+
+  const refreshComments = useCallback(async () => {
+    if (!taskId || !orgId) return;
+    const commentRows = await fetchTaskComments(taskId, orgId);
+    setFlatComments(commentRows);
+    setComments(buildCommentTree(commentRows));
+
+    const authorIds = commentRows.map((c) => c.author_id);
+    if (authorIds.length === 0) return;
+
+    const [profileList, emailMap] = await Promise.all([
+      fetchProfilesByIds([...new Set(authorIds)], orgId),
+      fetchProfileEmails(orgId, [...new Set(authorIds)]),
+    ]);
+
+    setProfiles((current) => {
+      const byId = new Map(current.map((p) => [p.id, p]));
+      for (const p of profileList) {
+        byId.set(p.id, {
+          ...p,
+          email: emailMap.get(p.id) ?? p.email ?? null,
+        });
+      }
+      return [...byId.values()];
+    });
+  }, [taskId, orgId]);
+
+  const refreshAudits = useCallback(async () => {
+    if (!taskId) return;
+    const rows = await fetchTaskAudits(taskId);
+    setAudits(rows);
+  }, [taskId]);
 
   useEffect(() => {
     if (!open || !taskId) return;
@@ -234,6 +291,11 @@ export function useTaskPreviewData(
         { event: "*", schema: "public", table: "time_entries", filter: `task_id=eq.${taskId}` },
         scheduleSilentRefresh,
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "audit_logs", filter: `entity_id=eq.${taskId}` },
+        scheduleSilentRefresh,
+      )
       .subscribe();
     return () => {
       clearTimeout(refreshTimer.current);
@@ -263,12 +325,12 @@ export function useTaskPreviewData(
   );
 
   const assigneeIds = useMemo(() => assignees.map((a) => a.id), [assignees]);
-  const commentCount = useMemo(() => countComments(comments), [comments]);
+  const commentCount = useMemo(() => countRootComments(comments), [comments]);
   const trackedTotal = totalTime + (isTracking ? sessionTime : 0);
 
   const isAssignee = useMemo(() => {
     if (!user || !task) return false;
-    return assigneeIds.includes(user.id) || task.assignee_id === user.id;
+    return isTaskAssignee(user.id, assigneeIds, task.assignee_id);
   }, [user, task, assigneeIds]);
 
   const nameOf = useCallback(
@@ -281,17 +343,40 @@ export function useTaskPreviewData(
   );
 
   const patchTask = useCallback(async (fields: Partial<TaskDetailRecord>) => {
-    if (!taskId) return false;
+    if (!taskId || !task) return false;
+
+    const changes = Object.entries(fields).filter(([key, value]) => {
+      return task[key as keyof TaskDetailRecord] !== value;
+    });
+    if (changes.length === 0) return true;
+
     const { error } = await supabase.from("tasks").update(fields).eq("id", taskId);
     if (error) {
+      if (fields.start_date !== undefined && isMissingColumnError(error)) {
+        toast.warning(TASK_START_DATE_MIGRATION_HINT);
+        return false;
+      }
       toast.error(error.message);
       return false;
     }
+
+    await Promise.all(
+      changes.map(([field, value]) =>
+        logTaskFieldChange(
+          taskId,
+          field,
+          value,
+          task[field as keyof TaskDetailRecord],
+        ),
+      ),
+    );
+
     skipNextTaskRealtime.current = true;
     setTask((current) => (current ? { ...current, ...fields } : current));
+    await refreshAudits();
     notifyParent();
     return true;
-  }, [taskId, notifyParent]);
+  }, [taskId, task, notifyParent, refreshAudits]);
 
   const saveDescription = useCallback(async (value: string, previous: string) => {
     if (!user || !task || !orgId) return;
@@ -330,11 +415,13 @@ export function useTaskPreviewData(
         parentId,
         members: mentionMembers,
       });
+      await refreshComments();
       notifyParent();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to post comment");
+      throw err;
     }
-  }, [user, task, orgId, profiles, mentionMembers, notifyParent]);
+  }, [user, task, orgId, profiles, mentionMembers, notifyParent, refreshComments]);
 
   const updateComment = useCallback(async (commentId: string, body: string) => {
     if (!user || !task || !orgId) return;
@@ -349,21 +436,34 @@ export function useTaskPreviewData(
         taskTitle: task.title,
         orgId,
       });
+      await refreshComments();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to update comment");
+      throw err;
     }
-  }, [user, task, orgId, profiles, mentionMembers]);
+  }, [user, task, orgId, profiles, mentionMembers, refreshComments]);
 
   const removeComment = useCallback(async (commentId: string) => {
     try {
       await deleteTaskComment(commentId);
+      await refreshComments();
+      notifyParent();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete comment");
+      throw err;
     }
-  }, []);
+  }, [notifyParent, refreshComments]);
 
   const syncAssignees = useCallback(async (ids: string[]) => {
     if (!task) return;
+    const previousIds = assigneeIds;
+    if (
+      previousIds.length === ids.length
+      && previousIds.every((id) => ids.includes(id))
+    ) {
+      return;
+    }
+
     skipNextTaskRealtime.current = true;
     const { error: e1 } = await supabase
       .from("tasks")
@@ -377,42 +477,63 @@ export function useTaskPreviewData(
       );
       if (e2) { toast.error(e2.message); return; }
     }
+
+    const assigneeNames = ids.map(
+      (id) => profiles.find((p) => p.id === id)?.full_name ?? "Someone",
+    );
+    await logTaskAssigneeChange(task.id, ids, assigneeNames);
+
     setAssignees(profiles.filter((p) => ids.includes(p.id)));
+    await refreshAudits();
     notifyParent();
-  }, [task, profiles, notifyParent]);
+  }, [task, assigneeIds, profiles, notifyParent, refreshAudits]);
 
   const toggleTimer = useCallback(async () => {
     if (!user || !task || !orgId) return;
-    const active = getActiveTaskTimer();
-    if (active?.taskId === task.id) {
-      const elapsed = getTimerElapsedSeconds(active);
-      const { error } = await supabase.from("time_entries").insert({
-        user_id: user.id,
-        task_id: task.id,
-        project_id: task.project_id,
-        organization_id: orgId,
-        started_at: new Date(active.startedAt).toISOString(),
-        ended_at: new Date().toISOString(),
-        duration_seconds: elapsed,
-      });
-      if (error) { toast.error(error.message); return; }
-      setActiveTaskTimer(null);
-      setIsTracking(false);
-      toast.success("Time logged");
-      notifyParent();
-    } else {
-      if (!isAssignee) { toast.error("Only assigned members can start the timer."); return; }
-      if (active) { toast.error("Stop the timer on the other task first."); return; }
-      setActiveTaskTimer({
-        taskId: task.id,
-        taskTitle: task.title,
-        projectId: task.project_id,
-        startedAt: Date.now(),
-        elapsedBefore: 0,
-      });
-      setIsTracking(true);
+
+    const authorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+    const result = await toggleTaskTimer({
+      userId: user.id,
+      userName: authorName,
+      orgId,
+      taskId: task.id,
+      taskTitle: task.title,
+      projectId: task.project_id,
+      assigneeIds,
+      legacyAssigneeId: task.assignee_id,
+    });
+
+    if (!result.ok) {
+      toast.error(result.message);
+      return;
     }
-  }, [user, task, orgId, isAssignee, notifyParent]);
+
+    if (result.action === "stopped") {
+      setIsTracking(false);
+      setTimerStartBlocked(false);
+      toast.success("Time logged");
+      void loadDataRef.current({ silent: true });
+      notifyParent();
+      return;
+    }
+
+    setIsTracking(true);
+    setTimerStartBlocked(false);
+
+    if (result.autoAssigned) {
+      skipNextTaskRealtime.current = true;
+      const selfProfile = profiles.find((p) => p.id === user.id);
+      if (selfProfile) {
+        setAssignees((current) =>
+          current.some((a) => a.id === user.id) ? current : [...current, selfProfile],
+        );
+      }
+      toast.success("You were assigned and the timer started");
+      void loadDataRef.current({ silent: true });
+    }
+
+    notifyParent();
+  }, [user, task, orgId, assigneeIds, profiles, notifyParent]);
 
   const deleteTask = useCallback(async () => {
     if (!task) return false;
@@ -449,6 +570,92 @@ export function useTaskPreviewData(
     }
   }, [user, task, orgId, profiles, mentionMembers, patchTask]);
 
+  const addChecklistItem = useCallback(async (title: string, assigneeId: string | null) => {
+    if (!user || !task) return;
+    try {
+      const item = await createTaskChecklistItem({
+        taskId: task.id,
+        title,
+        position: checklistItems.length,
+        userId: user.id,
+        assigneeId,
+      });
+      setChecklistItems((current) => [...current, item]);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to add checklist item";
+      if (msg.includes("task_checklist_items")) {
+        toast.warning(TASK_CHECKLIST_MIGRATION_HINT);
+      } else if (msg.includes("assignee_id")) {
+        toast.warning(TASK_CHECKLIST_ASSIGNEE_MIGRATION_HINT);
+      } else {
+        toast.error(msg);
+      }
+      throw err;
+    }
+  }, [user, task, checklistItems.length]);
+
+  const assignChecklistItem = useCallback(async (item: TaskChecklistItem, assigneeId: string | null) => {
+    const member = mentionMembers.find((m) => m.id === assigneeId);
+    const previous = item;
+    setChecklistItems((current) =>
+      current.map((row) =>
+        row.id === item.id
+          ? {
+              ...row,
+              assignee_id: assigneeId,
+              assignee: assigneeId && member
+                ? { id: member.id, full_name: member.full_name, avatar_url: member.avatar_url }
+                : null,
+            }
+          : row,
+      ),
+    );
+    try {
+      const updated = await updateTaskChecklistItem(item.id, { assignee_id: assigneeId });
+      if (updated) {
+        setChecklistItems((current) =>
+          current.map((row) => (row.id === item.id ? updated : row)),
+        );
+      }
+    } catch (err: unknown) {
+      setChecklistItems((current) =>
+        current.map((row) => (row.id === item.id ? previous : row)),
+      );
+      const msg = err instanceof Error ? err.message : "Failed to update assignee";
+      if (msg.includes("assignee_id")) {
+        toast.warning(TASK_CHECKLIST_ASSIGNEE_MIGRATION_HINT);
+      } else {
+        toast.error(msg);
+      }
+    }
+  }, [mentionMembers]);
+
+  const toggleChecklistItem = useCallback(async (item: TaskChecklistItem) => {
+    const next = !item.is_completed;
+    setChecklistItems((current) =>
+      current.map((row) => (row.id === item.id ? { ...row, is_completed: next } : row)),
+    );
+    try {
+      await updateTaskChecklistItem(item.id, { is_completed: next });
+    } catch (err: unknown) {
+      setChecklistItems((current) =>
+        current.map((row) => (row.id === item.id ? { ...row, is_completed: item.is_completed } : row)),
+      );
+      toast.error(err instanceof Error ? err.message : "Failed to update checklist item");
+    }
+  }, []);
+
+  const removeChecklistItem = useCallback(async (item: TaskChecklistItem) => {
+    const previous = checklistItems;
+    setChecklistItems((current) => current.filter((row) => row.id !== item.id));
+    try {
+      await deleteTaskChecklistItem(item.id);
+    } catch (err: unknown) {
+      setChecklistItems(previous);
+      toast.error(err instanceof Error ? err.message : "Failed to delete checklist item");
+    }
+  }, [checklistItems]);
+
   return {
     user,
     orgId,
@@ -456,6 +663,7 @@ export function useTaskPreviewData(
     projectName,
     folderName,
     subtasks,
+    checklistItems,
     comments,
     flatComments,
     mentionMembers,
@@ -470,6 +678,7 @@ export function useTaskPreviewData(
     trackedTotal,
     commentCount,
     isAssignee,
+    timerStartBlocked,
     nameOf,
     loadData: reload,
     patchTask,
@@ -481,5 +690,9 @@ export function useTaskPreviewData(
     syncAssignees,
     toggleTimer,
     deleteTask,
+    addChecklistItem,
+    toggleChecklistItem,
+    removeChecklistItem,
+    assignChecklistItem,
   };
 }

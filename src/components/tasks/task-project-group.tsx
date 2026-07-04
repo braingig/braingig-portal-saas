@@ -8,6 +8,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskFolderSection } from "@/components/tasks/task-folder-section";
 import { TaskListItemGroup } from "@/components/tasks/task-list-item";
 import {
@@ -16,6 +17,7 @@ import {
   tasksIconBtn,
   tasksIconMd,
   tasksMenuItem,
+  tasksFolderBody,
   tasksMeta,
   tasksProjectBody,
   tasksProjectHeader,
@@ -25,9 +27,9 @@ import {
 } from "@/components/tasks/tasks-page-styles";
 import { dsIconStroke } from "@/lib/design-system";
 import { buildProjectFolders, tasksInFolder } from "@/lib/projects/folders";
-import { groupSearchMatchRank } from "@/lib/tasks/search";
+import { groupHasSearchMatch, groupSearchMatchRank, taskOrSubtasksMatchSearch } from "@/lib/tasks/search";
 import { countDoneTasks, countOpenTasks } from "@/lib/tasks/status";
-import type { TaskListItem, TaskMilestone, TaskProjectGroup as ProjectGroup } from "@/lib/tasks/types";
+import type { TaskListItem, TaskMilestone, TaskOrgMember, TaskProjectGroup as ProjectGroup } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 type TaskProjectGroupProps = {
@@ -35,12 +37,14 @@ type TaskProjectGroupProps = {
   milestones: TaskMilestone[];
   subtasksByParent: Map<string, TaskListItem[]>;
   searchQuery?: string;
-  onAddTask: (projectId?: string, milestoneId?: string | null) => void;
+  orgId: string;
+  userId: string;
+  members: TaskOrgMember[];
+  onTaskCreated: () => void;
   onCreateFolder: (projectId: string) => void;
   onToggleComplete: (task: TaskListItem) => void;
   onStatusChange: (task: TaskListItem, status: string) => void;
   onEdit: (task: TaskListItem) => void;
-  onAddSubtask: (task: TaskListItem) => void;
   onOpenTask?: (taskId: string) => void;
   defaultExpanded?: boolean;
 };
@@ -50,16 +54,19 @@ export function TaskProjectGroup({
   milestones,
   subtasksByParent,
   searchQuery,
-  onAddTask,
+  orgId,
+  userId,
+  members,
+  onTaskCreated,
   onCreateFolder,
   onToggleComplete,
   onStatusChange,
   onEdit,
-  onAddSubtask,
   onOpenTask,
   defaultExpanded = true,
 }: TaskProjectGroupProps) {
   const [expanded, setExpanded] = useState(defaultExpanded);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
   const isSearching = Boolean(searchQuery?.trim());
 
   useEffect(() => {
@@ -73,23 +80,28 @@ export function TaskProjectGroup({
 
   const projectMilestones = milestones.filter((m) => m.project_id === group.id);
   const folderCount = projectMilestones.length;
-  const folders = group.isStandalone ? null : buildProjectFolders(projectMilestones, group.tasks);
+  const milestoneFolders = group.isStandalone ? [] : buildProjectFolders(projectMilestones);
 
-  const summaryParts = group.isStandalone
-    ? [`${openCount} Open`, `${doneCount} Done`]
-    : [`${openCount} Open`, `${doneCount} Done`, `${folderCount} ${folderCount === 1 ? "Folder" : "Folders"}`];
+  const unfiledTasks = useMemo(() => {
+    const unfiled = tasksInFolder(group.tasks, null);
+    if (!isSearching) return unfiled;
+    return unfiled.filter((t) => taskOrSubtasksMatchSearch(t, subtasksByParent.get(t.id), searchQuery!));
+  }, [group.tasks, isSearching, searchQuery, subtasksByParent]);
 
   const visibleFolders = useMemo(() => {
-    if (!folders) return null;
-    if (!isSearching) return folders;
-    return [...folders]
-      .filter((folder) => tasksInFolder(group.tasks, folder.id).length > 0)
+    if (!isSearching) return milestoneFolders;
+    return [...milestoneFolders]
+      .filter((folder) => groupHasSearchMatch(tasksInFolder(group.tasks, folder.id), subtasksByParent, searchQuery!))
       .sort(
         (a, b) =>
           groupSearchMatchRank(tasksInFolder(group.tasks, a.id), subtasksByParent, searchQuery!) -
           groupSearchMatchRank(tasksInFolder(group.tasks, b.id), subtasksByParent, searchQuery!),
       );
-  }, [folders, group.tasks, isSearching, searchQuery, subtasksByParent]);
+  }, [milestoneFolders, group.tasks, isSearching, searchQuery, subtasksByParent]);
+
+  const summaryParts = group.isStandalone
+    ? [`${openCount} Open`, `${doneCount} Done`]
+    : [`${openCount} Open`, `${doneCount} Done`, `${folderCount} ${folderCount === 1 ? "Folder" : "Folders"}`];
 
   return (
     <section className={tasksSectionShell}>
@@ -150,7 +162,10 @@ export function TaskProjectGroup({
               )}
               <DropdownMenuItem
                 className={tasksMenuItem}
-                onClick={() => onAddTask(group.isStandalone ? undefined : group.id, null)}
+                onClick={() => {
+                  setExpanded(true);
+                  setQuickAddOpen(true);
+                }}
               >
                 <Plus className={tasksIconMd} strokeWidth={dsIconStroke} /> Add task
               </DropdownMenuItem>
@@ -161,42 +176,99 @@ export function TaskProjectGroup({
 
       <AnimatedCollapse open={expanded} contentClassName={cn(tasksProjectBody, "divide-y divide-border/20")}>
         {group.isStandalone ? (
-          group.tasks.length === 0 ? (
-            <EmptyProjectTasks standalone onAdd={() => onAddTask(undefined, null)} />
-          ) : (
-            group.tasks.map((task) => (
-              <TaskListItemGroup
-                key={task.id}
-                task={task}
-                subtasks={subtasksByParent.get(task.id) ?? []}
+          <>
+            {quickAddOpen && (
+              <QuickTaskAddRow
+                orgId={orgId}
+                userId={userId}
+                members={members}
+                position={group.tasks.length}
+                onSuccess={() => {
+                  setQuickAddOpen(false);
+                  onTaskCreated();
+                }}
+                onCancel={() => setQuickAddOpen(false)}
+              />
+            )}
+
+            {group.tasks.length === 0 && !quickAddOpen ? (
+              <EmptyProjectTasks onAdd={() => setQuickAddOpen(true)} standalone />
+            ) : (
+              group.tasks.map((task) => (
+                <TaskListItemGroup
+                  key={task.id}
+                  task={task}
+                  subtasks={subtasksByParent.get(task.id) ?? []}
+                  searchQuery={searchQuery}
+                  onToggleComplete={onToggleComplete}
+                  onStatusChange={onStatusChange}
+                  onEdit={onEdit}
+                  onOpenTask={onOpenTask}
+                  quickAdd={{ orgId, userId, members, onCreated: onTaskCreated }}
+                />
+              ))
+            )}
+          </>
+        ) : (
+          <>
+            {(quickAddOpen || unfiledTasks.length > 0) && (
+              <div className={tasksFolderBody}>
+                {quickAddOpen && (
+                  <QuickTaskAddRow
+                    orgId={orgId}
+                    userId={userId}
+                    members={members}
+                    projectId={group.id}
+                    position={group.tasks.length}
+                    nestedInFolder
+                    onSuccess={() => {
+                      setQuickAddOpen(false);
+                      onTaskCreated();
+                    }}
+                    onCancel={() => setQuickAddOpen(false)}
+                  />
+                )}
+                {unfiledTasks.map((task) => (
+                  <TaskListItemGroup
+                    key={task.id}
+                    task={task}
+                    subtasks={subtasksByParent.get(task.id) ?? []}
+                    searchQuery={searchQuery}
+                    nestedInFolder
+                    onToggleComplete={onToggleComplete}
+                    onStatusChange={onStatusChange}
+                    onEdit={onEdit}
+                    onOpenTask={onOpenTask}
+                    quickAdd={{ orgId, userId, members, onCreated: onTaskCreated }}
+                  />
+                ))}
+              </div>
+            )}
+
+            {visibleFolders.map((folder, index) => (
+              <TaskFolderSection
+                key={folder.id}
+                folder={folder}
+                tasks={group.tasks}
+                subtasksByParent={subtasksByParent}
                 searchQuery={searchQuery}
+                projectId={group.id}
+                orgId={orgId}
+                userId={userId}
+                members={members}
+                onTaskCreated={onTaskCreated}
                 onToggleComplete={onToggleComplete}
                 onStatusChange={onStatusChange}
                 onEdit={onEdit}
-                onAddSubtask={onAddSubtask}
                 onOpenTask={onOpenTask}
+                defaultExpanded={isSearching || index === 0}
               />
-            ))
-          )
-        ) : visibleFolders && visibleFolders.length > 0 ? (
-          visibleFolders.map((folder, index) => (
-            <TaskFolderSection
-              key={folder.id ?? "default"}
-              folder={folder}
-              tasks={group.tasks}
-              subtasksByParent={subtasksByParent}
-              searchQuery={searchQuery}
-              onAddTask={(milestoneId) => onAddTask(group.id, milestoneId)}
-              onToggleComplete={onToggleComplete}
-              onStatusChange={onStatusChange}
-              onEdit={onEdit}
-              onAddSubtask={onAddSubtask}
-              onOpenTask={onOpenTask}
-              defaultExpanded={isSearching || index === 0}
-            />
-          ))
-        ) : (
-          <EmptyProjectTasks onAdd={() => onAddTask(group.id, null)} />
+            ))}
+
+            {group.tasks.length === 0 && visibleFolders.length === 0 && !quickAddOpen && (
+              <EmptyProjectTasks onAdd={() => setQuickAddOpen(true)} />
+            )}
+          </>
         )}
       </AnimatedCollapse>
     </section>

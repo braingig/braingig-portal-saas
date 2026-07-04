@@ -1,9 +1,9 @@
 import { useState } from "react";
-import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
+import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskPreviewSubtaskRow } from "@/components/tasks/preview/task-preview-subtask-row";
 import { previewMeta } from "@/components/tasks/preview/task-preview-styles";
-import type { TaskDetailRecord, TaskListItem } from "@/lib/tasks/types";
+import type { TaskDetailRecord, TaskListItem, TaskOrgMember } from "@/lib/tasks/types";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -13,6 +13,7 @@ type TaskPreviewSubtasksProps = {
   subtasks: TaskListItem[];
   orgId: string;
   userId: string;
+  members: TaskOrgMember[];
   onChange: () => void;
   onOpenTask?: (taskId: string) => void;
   createOpen?: boolean;
@@ -24,6 +25,7 @@ export function TaskPreviewSubtasks({
   subtasks,
   orgId,
   userId,
+  members,
   onChange,
   onOpenTask,
   createOpen: createOpenProp,
@@ -56,7 +58,26 @@ export function TaskPreviewSubtasks({
 
   return (
     <>
-      {subtasks.length === 0 ? (
+      {createOpen && (
+        <QuickTaskAddRow
+          orgId={orgId}
+          userId={userId}
+          members={members}
+          projectId={parentTask.project_id ?? undefined}
+          milestoneId={parentTask.milestone_id ?? undefined}
+          parentTaskId={parentTask.id}
+          position={subtasks.length}
+          isSubtask
+          variant="preview"
+          onSuccess={() => {
+            setCreateOpen(false);
+            onChange();
+          }}
+          onCancel={() => setCreateOpen(false)}
+        />
+      )}
+
+      {subtasks.length === 0 && !createOpen ? (
         <p className={cn("py-2", previewMeta)}>No subtasks yet.</p>
       ) : (
         <div>
@@ -73,18 +94,6 @@ export function TaskPreviewSubtasks({
           ))}
         </div>
       )}
-
-      <CreateTaskModal
-        open={createOpen}
-        onOpenChange={setCreateOpen}
-        orgId={orgId}
-        userId={userId}
-        parentTaskId={parentTask.id}
-        defaultProjectId={parentTask.project_id ?? undefined}
-        defaultMilestoneId={parentTask.milestone_id ?? undefined}
-        subtaskPosition={subtasks.length}
-        onSuccess={onChange}
-      />
 
       {editingTaskId && (
         <EditTaskModal

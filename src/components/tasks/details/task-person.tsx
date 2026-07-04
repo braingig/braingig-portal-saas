@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 type TaskPersonProps = {
   profile: TaskDetailProfile;
   subtitle?: string | null;
-  size?: "sm" | "md";
+  size?: "xs" | "sm" | "md";
   showYou?: boolean;
   currentUserId?: string;
   className?: string;
@@ -25,22 +25,28 @@ export function TaskPerson({
   const secondary = subtitle ?? profile.job_title;
 
   return (
-    <div className={cn("flex min-w-0 items-center gap-2.5", className)}>
+    <div className={cn("flex min-w-0 items-center", size === "xs" ? "gap-2" : "gap-2.5", className)}>
       <ProfileAvatar
         userId={profile.id}
         name={profile.full_name}
         avatarUrl={profile.avatar_url}
         email={profile.email}
-        size={size === "sm" ? "sm" : "md"}
+        size={size === "xs" ? "xs" : size === "sm" ? "sm" : "md"}
         eager={eager}
       />
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium text-foreground">
+        <p className={cn(
+          "truncate text-foreground",
+          size === "xs" ? "text-[13px] font-normal" : "text-sm font-medium",
+        )}>
           {profile.full_name}
           {isYou && <span className="text-muted-foreground"> (you)</span>}
         </p>
         {secondary && (
-          <p className="truncate text-xs text-muted-foreground">{secondary}</p>
+          <p className={cn(
+            "truncate text-muted-foreground",
+            size === "xs" ? "text-[11px]" : "text-xs",
+          )}>{secondary}</p>
         )}
       </div>
     </div>

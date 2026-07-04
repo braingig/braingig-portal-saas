@@ -47,6 +47,7 @@ export type TaskDetailRecord = {
   status: string;
   priority: string;
   due_date: string | null;
+  start_date?: string | null;
   estimated_hours: number | null;
   project_id: string | null;
   milestone_id: string | null;

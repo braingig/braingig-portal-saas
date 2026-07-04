@@ -42,7 +42,6 @@ import { Route as AuthenticatedTasksRouteRouteImport } from './routes/_authentic
 import { Route as AuthenticatedProjectsRouteRouteImport } from './routes/_authenticated/projects/route'
 import { Route as AuthenticatedTasksIndexRouteImport } from './routes/_authenticated/tasks/index'
 import { Route as AuthenticatedProjectsIndexRouteImport } from './routes/_authenticated/projects/index'
-import { Route as AuthenticatedTasksTaskIdRouteImport } from './routes/_authenticated/tasks/$taskId'
 import { Route as AuthenticatedProjectsProjectIdRouteImport } from './routes/_authenticated/projects/$projectId'
 
 const OnboardingRoute = OnboardingRouteImport.update({
@@ -213,12 +212,6 @@ const AuthenticatedProjectsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedProjectsRouteRoute,
   } as any)
-const AuthenticatedTasksTaskIdRoute =
-  AuthenticatedTasksTaskIdRouteImport.update({
-    id: '/$taskId',
-    path: '/$taskId',
-    getParentRoute: () => AuthenticatedTasksRouteRoute,
-  } as any)
 const AuthenticatedProjectsProjectIdRoute =
   AuthenticatedProjectsProjectIdRouteImport.update({
     id: '/$projectId',
@@ -258,7 +251,6 @@ export interface FileRoutesByFullPath {
   '/platform/plans': typeof PlatformPlansRoute
   '/platform/': typeof PlatformIndexRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
-  '/tasks/$taskId': typeof AuthenticatedTasksTaskIdRoute
   '/projects/': typeof AuthenticatedProjectsIndexRoute
   '/tasks/': typeof AuthenticatedTasksIndexRoute
 }
@@ -291,7 +283,6 @@ export interface FileRoutesByTo {
   '/platform/plans': typeof PlatformPlansRoute
   '/platform': typeof PlatformIndexRoute
   '/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
-  '/tasks/$taskId': typeof AuthenticatedTasksTaskIdRoute
   '/projects': typeof AuthenticatedProjectsIndexRoute
   '/tasks': typeof AuthenticatedTasksIndexRoute
 }
@@ -329,7 +320,6 @@ export interface FileRoutesById {
   '/platform/plans': typeof PlatformPlansRoute
   '/platform/': typeof PlatformIndexRoute
   '/_authenticated/projects/$projectId': typeof AuthenticatedProjectsProjectIdRoute
-  '/_authenticated/tasks/$taskId': typeof AuthenticatedTasksTaskIdRoute
   '/_authenticated/projects/': typeof AuthenticatedProjectsIndexRoute
   '/_authenticated/tasks/': typeof AuthenticatedTasksIndexRoute
 }
@@ -367,7 +357,6 @@ export interface FileRouteTypes {
     | '/platform/plans'
     | '/platform/'
     | '/projects/$projectId'
-    | '/tasks/$taskId'
     | '/projects/'
     | '/tasks/'
   fileRoutesByTo: FileRoutesByTo
@@ -400,7 +389,6 @@ export interface FileRouteTypes {
     | '/platform/plans'
     | '/platform'
     | '/projects/$projectId'
-    | '/tasks/$taskId'
     | '/projects'
     | '/tasks'
   id:
@@ -437,7 +425,6 @@ export interface FileRouteTypes {
     | '/platform/plans'
     | '/platform/'
     | '/_authenticated/projects/$projectId'
-    | '/_authenticated/tasks/$taskId'
     | '/_authenticated/projects/'
     | '/_authenticated/tasks/'
   fileRoutesById: FileRoutesById
@@ -683,13 +670,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedProjectsIndexRouteImport
       parentRoute: typeof AuthenticatedProjectsRouteRoute
     }
-    '/_authenticated/tasks/$taskId': {
-      id: '/_authenticated/tasks/$taskId'
-      path: '/$taskId'
-      fullPath: '/tasks/$taskId'
-      preLoaderRoute: typeof AuthenticatedTasksTaskIdRouteImport
-      parentRoute: typeof AuthenticatedTasksRouteRoute
-    }
     '/_authenticated/projects/$projectId': {
       id: '/_authenticated/projects/$projectId'
       path: '/$projectId'
@@ -717,13 +697,11 @@ const AuthenticatedProjectsRouteRouteWithChildren =
   )
 
 interface AuthenticatedTasksRouteRouteChildren {
-  AuthenticatedTasksTaskIdRoute: typeof AuthenticatedTasksTaskIdRoute
   AuthenticatedTasksIndexRoute: typeof AuthenticatedTasksIndexRoute
 }
 
 const AuthenticatedTasksRouteRouteChildren: AuthenticatedTasksRouteRouteChildren =
   {
-    AuthenticatedTasksTaskIdRoute: AuthenticatedTasksTaskIdRoute,
     AuthenticatedTasksIndexRoute: AuthenticatedTasksIndexRoute,
   }
 

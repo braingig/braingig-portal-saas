@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowUp, AtSign, Send } from "lucide-react";
+import { AtSign, Send } from "lucide-react";
 import { MentionSuggestionsPopover } from "@/components/tasks/mention-suggestions-popover";
 import {
   filterMentionMembers,
@@ -18,7 +18,7 @@ type CommentComposerProps = {
   submitLabel?: string;
   onCancel?: () => void;
   className?: string;
-  layout?: "side-submit" | "card";
+  layout?: "side-submit" | "card" | "clickup";
 };
 
 export function CommentComposer({
@@ -114,7 +114,7 @@ export function CommentComposer({
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
     if (mentionStart === null || suggestions.length === 0) {
-      if (layout === "card" && e.key === "Enter" && !e.shiftKey) {
+      if ((layout === "card" || layout === "clickup") && e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
         textareaRef.current?.form?.requestSubmit();
         return;
@@ -142,10 +142,16 @@ export function CommentComposer({
     }
   }
 
-  if (layout === "card") {
+  if (layout === "clickup" || layout === "card") {
+    const isClickup = layout === "clickup";
     return (
       <form onSubmit={handleSubmit} className={cn("relative", className)}>
-        <div className="rounded-xl border border-border/60 bg-card shadow-sm transition-shadow focus-within:border-brand/30 focus-within:ring-1 focus-within:ring-brand/10">
+        <div className={cn(
+          "border bg-card transition-shadow focus-within:border-brand/30 focus-within:ring-1 focus-within:ring-brand/10",
+          isClickup
+            ? "rounded-lg border-border/60 shadow-sm"
+            : "rounded-xl border-border/60 shadow-sm",
+        )}>
           <div ref={anchorRef} className="relative">
             <MentionSuggestionsPopover
               open={mentionStart !== null}
@@ -163,31 +169,42 @@ export function CommentComposer({
               onClick={(e) => syncMentionState(text, e.currentTarget.selectionStart)}
               onKeyUp={(e) => syncMentionState(text, e.currentTarget.selectionStart)}
               placeholder={placeholder}
-              rows={compact ? 2 : 3}
+              rows={isClickup ? 2 : (compact ? 2 : 3)}
               className={cn(
-                "w-full resize-none rounded-t-xl bg-transparent outline-none placeholder:text-muted-foreground/70",
-                compact
-                  ? "min-h-[48px] px-2.5 pt-2 text-[12px] leading-snug"
-                  : "min-h-[64px] px-3 pt-2.5 text-sm",
+                "w-full resize-none bg-transparent outline-none placeholder:text-muted-foreground/60",
+                isClickup
+                  ? "min-h-[44px] px-3 pt-2.5 text-[13px] leading-snug"
+                  : cn(
+                    "rounded-t-xl",
+                    compact
+                      ? "min-h-[48px] px-2.5 pt-2 text-[12px] leading-snug"
+                      : "min-h-[64px] px-3 pt-2.5 text-sm",
+                  ),
               )}
             />
           </div>
-          <div className="flex items-center justify-between gap-2 px-1.5 pb-1.5">
+          <div className={cn(
+            "flex items-center justify-between gap-2",
+            isClickup ? "px-2 pb-2" : "px-1.5 pb-1.5",
+          )}>
             <button
               type="button"
               onClick={insertMentionTrigger}
-              className="grid size-6 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+              className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
               aria-label="Mention someone"
             >
-              <AtSign className="size-3" />
+              <AtSign className={cn(isClickup ? "size-3.5" : "size-3")} />
             </button>
             <button
               type="submit"
               disabled={!text.trim() || submitting}
-              className="grid size-6 place-items-center rounded-full bg-brand text-brand-foreground transition-all hover:brightness-110 disabled:opacity-40"
+              className={cn(
+                "grid place-items-center rounded-md bg-brand text-brand-foreground transition-all hover:brightness-110 disabled:opacity-40",
+                isClickup ? "size-7" : "size-6 rounded-full",
+              )}
               aria-label="Send comment"
             >
-              <ArrowUp className="size-3" />
+              <Send className={cn(isClickup ? "size-3.5" : "size-3")} />
             </button>
           </div>
         </div>

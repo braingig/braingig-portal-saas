@@ -1,5 +1,5 @@
 import { Play, Square } from "lucide-react";
-import { TaskPreviewHint, timerHintLabel } from "@/components/tasks/preview/task-preview-hint";
+import { TaskTimerHint } from "@/components/tasks/task-timer-hint";
 import { previewFieldValue, previewMeta } from "@/components/tasks/preview/task-preview-styles";
 import { formatDurationHuman } from "@/lib/task-timer";
 import { cn } from "@/lib/utils";
@@ -8,7 +8,8 @@ type TaskPreviewTimeCardProps = {
   totalSeconds: number;
   isTracking: boolean;
   sessionSeconds: number;
-  canStartTimer: boolean;
+  isAssignee: boolean;
+  timerStartBlocked: boolean;
   onToggleTimer: () => void;
 };
 
@@ -16,10 +17,11 @@ export function TaskPreviewTimeCard({
   totalSeconds,
   isTracking,
   sessionSeconds,
-  canStartTimer,
+  isAssignee,
+  timerStartBlocked,
   onToggleTimer,
 }: TaskPreviewTimeCardProps) {
-  const canUseTimer = isTracking || canStartTimer;
+  const isDisabled = !isTracking && timerStartBlocked;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -35,15 +37,12 @@ export function TaskPreviewTimeCard({
             Running ({formatDurationHuman(sessionSeconds)})
           </p>
         )}
-        {/* {!canStartTimer && !isTracking && (
-          <p className={cn("mt-0.5", previewMeta)}>Assignees only</p>
-        )} */}
       </div>
-      <TaskPreviewHint label={timerHintLabel(isTracking, canStartTimer)} side="left">
+      <TaskTimerHint isTracking={isTracking} isAssignee={isAssignee} side="left">
         <button
           type="button"
           onClick={onToggleTimer}
-          disabled={!canUseTimer}
+          disabled={isDisabled}
           className={cn(
             "inline-flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] transition-all disabled:cursor-not-allowed disabled:opacity-50",
             isTracking
@@ -63,7 +62,7 @@ export function TaskPreviewTimeCard({
             </>
           )}
         </button>
-      </TaskPreviewHint>
+      </TaskTimerHint>
     </div>
   );
 }

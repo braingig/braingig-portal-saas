@@ -6,6 +6,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { previewHint } from "@/components/tasks/preview/task-preview-styles";
+import { getTimerHintLabel } from "@/lib/tasks/toggle-task-timer";
 
 type TaskPreviewHintProps = {
   label: string;
@@ -28,8 +29,6 @@ export function TaskPreviewHint({ label, children, side = "top" }: TaskPreviewHi
   );
 }
 
-export function timerHintLabel(isTracking: boolean, canStartTimer: boolean) {
-  if (isTracking) return "Stop timer";
-  if (canStartTimer) return "Start timer";
-  return "Assignees only";
+export function timerHintLabel(isTracking: boolean, isAssignee: boolean) {
+  return getTimerHintLabel(isTracking, isAssignee);
 }

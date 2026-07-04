@@ -46,6 +46,46 @@ export function countComments(nodes: TaskCommentNode[]): number {
   return nodes.reduce((sum, node) => sum + 1 + countComments(node.replies), 0);
 }
 
+/** Top-level comments only (threads), excluding replies. */
+export function countRootComments(nodes: TaskCommentNode[]): number {
+  return nodes.length;
+}
+
+/** Replies only, across all threads. */
+export function countReplyComments(nodes: TaskCommentNode[]): number {
+  return countComments(nodes) - countRootComments(nodes);
+}
+
+export function findCommentNode(
+  nodes: TaskCommentNode[],
+  id: string,
+): TaskCommentNode | null {
+  for (const node of nodes) {
+    if (node.id === id) return node;
+    const found = findCommentNode(node.replies, id);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Root thread + most recent message in that thread (by created_at). */
+export function getLatestThreadActivity(
+  nodes: TaskCommentNode[],
+): { root: TaskCommentNode; latest: TaskCommentNode } | null {
+  let best: { root: TaskCommentNode; latest: TaskCommentNode; at: number } | null = null;
+
+  function visit(node: TaskCommentNode, root: TaskCommentNode) {
+    const at = new Date(node.created_at).getTime();
+    if (!best || at > best.at) {
+      best = { root, latest: node, at };
+    }
+    for (const reply of node.replies) visit(reply, root);
+  }
+
+  for (const root of nodes) visit(root, root);
+  return best ? { root: best.root, latest: best.latest } : null;
+}
+
 export async function fetchTaskComments(
   taskId: string,
   orgId: string,

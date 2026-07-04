@@ -1,11 +1,10 @@
-import { useEffect, useState } from "react";
-import { Link, useNavigate } from "@tanstack/react-router";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { format } from "date-fns";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   CheckSquare,
   ChevronRight,
-  ExternalLink,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -20,15 +19,20 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { TaskDetailsActivePanel } from "@/components/tasks/details/task-details-active-panel";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
 import { TaskPreviewActivityPanel } from "@/components/tasks/preview/task-preview-activity-panel";
 import { TaskPreviewDescription } from "@/components/tasks/preview/task-preview-description";
 import { TaskPreviewExpandables } from "@/components/tasks/preview/task-preview-expandables";
 import { TaskPreviewMetaGrid } from "@/components/tasks/preview/task-preview-meta-grid";
+import { TaskPreviewNote } from "@/components/tasks/preview/task-preview-note";
 import { useTaskPreviewData } from "@/components/tasks/preview/use-task-preview-data";
 import { hasOpenNestedOverlay, isPortaledOverlayTarget } from "@/components/tasks/preview/task-preview-dialog-guards";
-import { previewModalTitle } from "@/components/tasks/preview/task-preview-styles";
+import { previewModalShell, previewModalTitle } from "@/components/tasks/preview/task-preview-styles";
+import { useDeviceActivity } from "@/hooks/use-device-activity";
 import { useRoles } from "@/hooks/use-role";
+import { fetchParentTaskSummary } from "@/lib/tasks/subtasks";
+import type { TaskDetailRecord } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 type TaskPreviewModalProps = {
@@ -46,22 +50,28 @@ export function TaskPreviewModal({
   onTaskChange,
   onUpdated,
 }: TaskPreviewModalProps) {
-  const navigate = useNavigate();
   const { hasAny } = useRoles();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [parentTask, setParentTask] = useState<Pick<TaskDetailRecord, "id" | "title"> | null>(null);
 
   const data = useTaskPreviewData(taskId, open, onUpdated);
+
+  useDeviceActivity(data.task?.project_id || null, data.task?.id || null);
+
+  useEffect(() => {
+    if (!data.task?.parent_id) {
+      setParentTask(null);
+      return;
+    }
+    void fetchParentTaskSummary(data.task.parent_id).then((summary) => {
+      setParentTask(summary ? { id: summary.id, title: summary.title } : null);
+    });
+  }, [data.task?.parent_id]);
 
   useEffect(() => {
     if (open) setEditingTitle(false);
   }, [open, taskId]);
-
-  function openFullPage() {
-    if (!taskId) return;
-    onOpenChange(false);
-    navigate({ to: "/tasks/$taskId", params: { taskId } });
-  }
 
   async function handleTitleBlur(title: string) {
     if (!data.task) return;
@@ -81,19 +91,35 @@ export function TaskPreviewModal({
     ? `Created ${format(new Date(data.task.created_at), "MMM d")}`
     : null;
 
+  const createdBy = useMemo(
+    () => data.profiles.find((p) => p.id === data.task?.created_by) ?? null,
+    [data.profiles, data.task?.created_by],
+  );
+
+  const assigneeIds = useMemo(() => data.assignees.map((a) => a.id), [data.assignees]);
+
+  const activeNowUsers = data.isTracking && data.user
+    ? (() => {
+      const profile = data.profiles.find((p) => p.id === data.user?.id);
+      return profile
+        ? [profile]
+        : [{
+          id: data.user.id,
+          full_name: "You",
+          avatar_url: null,
+          email: data.user.email ?? null,
+          job_title: null,
+        }];
+    })()
+    : [];
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogPortal>
           <DialogOverlay className="bg-black/45 backdrop-blur-[3px]" />
           <DialogPrimitive.Content
-            className={cn(
-              "fixed left-1/2 top-1/2 z-50 flex h-[min(92vh,820px)] w-[min(96vw,1180px)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden",
-              "rounded-2xl border border-border/50 bg-card shadow-2xl",
-              "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
-              "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-              "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
-            )}
+            className={previewModalShell}
             onOpenAutoFocus={(e) => e.preventDefault()}
             onInteractOutside={(e) => {
               if (isPortaledOverlayTarget(e.target)) e.preventDefault();
@@ -135,11 +161,25 @@ export function TaskPreviewModal({
                         <span className="truncate">{data.folderName}</span>
                       </>
                     )}
+                    {parentTask && (
+                      <>
+                        <ChevronRight className="size-3 shrink-0 opacity-40" />
+                        <button
+                          type="button"
+                          onClick={() => onTaskChange?.(parentTask.id)}
+                          className="truncate hover:text-brand"
+                        >
+                          {parentTask.title}
+                        </button>
+                      </>
+                    )}
                   </nav>
 
                   <div className="flex shrink-0 items-center gap-1">
-                    {createdLabel && (
-                      <span className="mr-2 hidden text-xs text-muted-foreground sm:inline">
+                    {(createdLabel || createdBy) && (
+                      <span className="mr-2 hidden max-w-[220px] truncate text-xs text-muted-foreground sm:inline">
+                        {createdBy && <>By {createdBy.full_name}</>}
+                        {createdBy && createdLabel && " · "}
                         {createdLabel}
                       </span>
                     )}
@@ -155,9 +195,6 @@ export function TaskPreviewModal({
                       >
                         <DropdownMenuItem onClick={() => setShowEditModal(true)}>
                           <Pencil className="size-4" /> Edit task
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onClick={openFullPage}>
-                          <ExternalLink className="size-4" /> Open full page
                         </DropdownMenuItem>
                         {data.user?.id === data.task.created_by && (
                           <>
@@ -201,7 +238,11 @@ export function TaskPreviewModal({
                         <button
                           type="button"
                           onClick={() => setEditingTitle(true)}
-                          className={cn("mb-5 w-full text-left hover:text-brand/90", previewModalTitle)}
+                          className={cn(
+                            "mb-5 w-full rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150",
+                            "hover:bg-muted/55 dark:hover:bg-surface/70",
+                            previewModalTitle,
+                          )}
                         >
                           {data.task.title}
                         </button>
@@ -213,10 +254,12 @@ export function TaskPreviewModal({
                         members={data.mentionMembers}
                         trackedSeconds={data.trackedTotal}
                         isTracking={data.isTracking}
-                        canStartTimer={data.isAssignee}
+                        isAssignee={data.isAssignee}
+                        timerStartBlocked={data.timerStartBlocked}
                         onStatusChange={(s) => void data.patchTask({ status: s })}
                         onPriorityChange={(p) => void data.patchTask({ priority: p })}
-                        onDueDateChange={(d) => void data.patchTask({ due_date: d })}
+                        onStartDateChange={(d) => void data.patchTask({ start_date: d })}
+                        onEndDateChange={(d) => void data.patchTask({ due_date: d })}
                         onEstimatedHoursChange={(h) => void data.patchTask({ estimated_hours: h })}
                         onAssigneesChange={(ids) => void data.syncAssignees(ids)}
                         onToggleTimer={data.toggleTimer}
@@ -231,29 +274,40 @@ export function TaskPreviewModal({
                         />
                       </div>
 
+                      <div className="mt-6">
+                        <TaskPreviewNote
+                          key={`${data.task.id}-note`}
+                          note={data.task.note}
+                          members={data.mentionMembers}
+                          onSave={data.saveNote}
+                        />
+                      </div>
+
                       {data.user && data.orgId && (
                         <TaskPreviewExpandables
                           key={`${data.task.id}-${open}`}
                           task={data.task}
                           orgId={data.orgId}
                           userId={data.user.id}
+                          members={data.mentionMembers}
                           subtasks={data.subtasks}
-                          comments={data.comments}
-                          mentionMembers={data.mentionMembers}
-                          currentUserId={data.user.id}
-                          canModerate={hasAny("owner", "admin")}
+                          checklistItems={data.checklistItems}
                           attachmentCount={data.attachmentCount}
-                          commentCount={data.commentCount}
                           trackedTotal={data.trackedTotal}
                           isTracking={data.isTracking}
                           sessionTime={data.sessionTime}
                           isAssignee={data.isAssignee}
+                          timerStartBlocked={data.timerStartBlocked}
+                          timeEntries={data.timeEntries}
+                          profiles={data.profiles}
+                          assigneeIds={assigneeIds}
                           onOpenTask={(id) => onTaskChange?.(id)}
                           onReload={data.loadData}
-                          onCommentSubmit={data.postComment}
-                          onCommentUpdate={data.updateComment}
-                          onCommentDelete={data.removeComment}
                           onToggleTimer={data.toggleTimer}
+                          onAddChecklistItem={data.addChecklistItem}
+                          onToggleChecklistItem={data.toggleChecklistItem}
+                          onRemoveChecklistItem={data.removeChecklistItem}
+                          onAssignChecklistItem={data.assignChecklistItem}
                         />
                       )}
                     </div>
@@ -262,9 +316,15 @@ export function TaskPreviewModal({
                   {/* Right — activity sidebar */}
                   <TaskPreviewActivityPanel
                     timeEntries={data.timeEntries}
-                    comments={data.flatComments}
+                    comments={data.comments}
                     audits={data.audits}
                     nameOf={data.nameOf}
+                    mentionMembers={data.mentionMembers}
+                    currentUserId={data.user?.id}
+                    canModerate={hasAny("owner", "admin")}
+                    onCommentSubmit={data.user ? data.postComment : undefined}
+                    onCommentUpdate={data.user ? data.updateComment : undefined}
+                    onCommentDelete={data.user ? data.removeComment : undefined}
                   />
                 </div>
               </>
@@ -283,6 +343,12 @@ export function TaskPreviewModal({
           onSuccess={data.loadData}
         />
       )}
+
+      <TaskDetailsActivePanel
+        isTracking={data.isTracking}
+        activeUsers={activeNowUsers}
+        currentUserId={data.user?.id}
+      />
     </>
   );
 }

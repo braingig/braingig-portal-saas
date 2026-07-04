@@ -8,25 +8,25 @@ import { previewFieldBlock } from "@/components/tasks/preview/task-preview-style
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
-type TaskPreviewDescriptionProps = {
-  description: string | null;
+type TaskPreviewNoteProps = {
+  note: string | null;
   members: TaskOrgMember[];
   onSave: (value: string, previous: string) => void | Promise<void>;
 };
 
 const COLLAPSED_MAX_HEIGHT = 96;
 
-export function TaskPreviewDescription({
-  description,
+export function TaskPreviewNote({
+  note,
   members,
   onSave,
-}: TaskPreviewDescriptionProps) {
+}: TaskPreviewNoteProps) {
   const [editing, setEditing] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [canExpand, setCanExpand] = useState(false);
-  const [draft, setDraft] = useState(description ?? "");
-  const savedBaseline = useRef(description ?? "");
-  const pending = useRef(description ?? "");
+  const [draft, setDraft] = useState(note ?? "");
+  const savedBaseline = useRef(note ?? "");
+  const pending = useRef(note ?? "");
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const onSaveRef = useRef(onSave);
   const editingRef = useRef(editing);
@@ -35,18 +35,18 @@ export function TaskPreviewDescription({
   onSaveRef.current = onSave;
   editingRef.current = editing;
 
-  const html = description ?? "";
+  const html = note ?? "";
   const empty = isRichTextEmpty(html);
 
   useEffect(() => {
     if (!editingRef.current) {
-      const next = description ?? "";
+      const next = note ?? "";
       savedBaseline.current = next;
       pending.current = next;
       setDraft(next);
       setExpanded(false);
     }
-  }, [description]);
+  }, [note]);
 
   useLayoutEffect(() => {
     if (editing || expanded || empty) {
@@ -84,7 +84,7 @@ export function TaskPreviewDescription({
   }
 
   function startEditing() {
-    const initial = description ?? "";
+    const initial = note ?? "";
     savedBaseline.current = initial;
     pending.current = initial;
     setDraft(initial);
@@ -100,7 +100,7 @@ export function TaskPreviewDescription({
     return (
       <section className={cn(previewFieldBlock, "bg-surface/30")}>
         <div className="mb-2 flex items-center justify-between">
-          <span className="text-xs font-medium text-muted-foreground">Description</span>
+          <span className="text-xs font-medium text-muted-foreground">Internal note</span>
           <button
             type="button"
             onClick={finishEditing}
@@ -113,7 +113,7 @@ export function TaskPreviewDescription({
           value={draft}
           onChange={scheduleSave}
           members={members}
-          placeholder="What needs to be done?"
+          placeholder="Internal notes (optional)… Type @ to mention someone."
           minHeight="100px"
         />
       </section>
@@ -122,10 +122,10 @@ export function TaskPreviewDescription({
 
   return (
     <section className={previewFieldBlock}>
-      <span className="text-xs font-medium text-muted-foreground">Description</span>
+      <span className="text-xs font-medium text-muted-foreground">Internal note</span>
       <div className="relative mt-1.5">
         {empty ? (
-          <p className="text-sm leading-relaxed text-muted-foreground">No description yet.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">No internal note yet.</p>
         ) : (
           <>
             <div
@@ -160,7 +160,7 @@ export function TaskPreviewDescription({
         onClick={startEditing}
         className="mt-2 text-xs font-medium text-brand hover:text-brand/80"
       >
-        {empty ? "Add description" : "Edit"}
+        {empty ? "Add note" : "Edit"}
       </button>
     </section>
   );

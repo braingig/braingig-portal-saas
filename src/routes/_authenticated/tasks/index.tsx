@@ -2,7 +2,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { CreateProjectFolderModal } from "@/components/projects/create-project-folder-modal";
-import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
 import { TaskPreviewModal } from "@/components/tasks/preview/task-preview-modal";
 import { TaskProjectGroup } from "@/components/tasks/task-project-group";
@@ -53,14 +52,10 @@ function TasksPage() {
   const [listFilters, setListFilters] = useState<TasksListFilters>(DEFAULT_TASKS_LIST_FILTERS);
   const [viewMode, setViewMode] = useState<TasksViewMode>("list");
   const [members, setMembers] = useState<TaskOrgMember[]>([]);
-  const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [showFolderModal, setShowFolderModal] = useState(false);
-  const [defaultProjectId, setDefaultProjectId] = useState<string | undefined>();
-  const [defaultMilestoneId, setDefaultMilestoneId] = useState<string | undefined>();
   const [folderProjectId, setFolderProjectId] = useState<string | null>(null);
-  const [subtaskParent, setSubtaskParent] = useState<TaskListItem | null>(null);
   const [previewTaskId, setPreviewTaskId] = useState<string | null>(null);
 
   const loadTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -136,20 +131,6 @@ function TasksPage() {
       supabase.removeChannel(ch);
     };
   }, [orgId, scheduleLoad]);
-
-  function openCreateModal(projectId?: string, milestoneId?: string | null) {
-    setSubtaskParent(null);
-    setDefaultProjectId(projectId);
-    setDefaultMilestoneId(milestoneId ?? undefined);
-    setShowCreateModal(true);
-  }
-
-  function openCreateSubtaskModal(task: TaskListItem) {
-    setSubtaskParent(task);
-    setDefaultProjectId(task.project_id ?? undefined);
-    setDefaultMilestoneId(task.milestone_id ?? undefined);
-    setShowCreateModal(true);
-  }
 
   function openFolderModal(projectId: string) {
     setFolderProjectId(projectId);
@@ -307,8 +288,13 @@ function TasksPage() {
           </p>
         ) : showEmptyState ? (
           <TasksEmptyState
-            onCreateTask={() => openCreateModal()}
             filtered={isProjectFiltered || Boolean(searchQuery.trim()) || tasks.length > 0}
+            quickAdd={user && orgId ? {
+              orgId,
+              userId: user.id,
+              members,
+              onCreated: load,
+            } : undefined}
           />
         ) : (
           <div className={tasksProjectStack}>
@@ -319,12 +305,14 @@ function TasksPage() {
                 milestones={milestones}
                 subtasksByParent={subtasksByParent}
                 searchQuery={searchQuery}
-                onAddTask={openCreateModal}
+                orgId={orgId!}
+                userId={user!.id}
+                members={members}
+                onTaskCreated={load}
                 onCreateFolder={openFolderModal}
                 onToggleComplete={toggleStatus}
                 onStatusChange={changeStatus}
                 onEdit={openEditModal}
-                onAddSubtask={openCreateSubtaskModal}
                 onOpenTask={openTaskPreview}
                 defaultExpanded={Boolean(searchQuery.trim()) || group.tasks.length > 0 || projectFilter === group.id}
               />
@@ -335,21 +323,6 @@ function TasksPage() {
 
       {user && orgId && (
         <>
-          <CreateTaskModal
-            open={showCreateModal}
-            onOpenChange={(open) => {
-              setShowCreateModal(open);
-              if (!open) setSubtaskParent(null);
-            }}
-            orgId={orgId}
-            userId={user.id}
-            defaultProjectId={defaultProjectId}
-            defaultMilestoneId={defaultMilestoneId}
-            parentTaskId={subtaskParent?.id}
-            subtaskPosition={subtaskParent ? (subtasksByParent.get(subtaskParent.id)?.length ?? 0) : undefined}
-            onSuccess={load}
-          />
-
           {editingTaskId && (
             <EditTaskModal
               open={showEditModal}
