@@ -30,7 +30,7 @@ function buildBasePayload(
     title: values.title.trim(),
     organization_id: orgId,
     created_by: userId,
-    status: "todo",
+    status: values.status || "todo",
     priority: values.priority,
     position: position ?? 0,
     project_id: values.projectId || null,
@@ -53,6 +53,7 @@ function buildExtendedPayload(
     note: values.note || null,
     estimated_hours: values.estimatedHours ? Number(values.estimatedHours) : null,
     milestone_id: values.milestoneId || null,
+    start_date: values.startDate || null,
   };
 }
 

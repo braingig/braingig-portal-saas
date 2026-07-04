@@ -81,6 +81,18 @@ export const previewFieldValueBtn = "min-w-0 rounded-md px-1 py-0.5 text-left ou
 /** Modal task title — matches My Tasks detail modal */
 export const previewModalTitle = cn(dsTaskTitle, "leading-tight");
 
+/** Sticky footer for create/edit task modal */
+export const previewFormFooter =
+  "flex shrink-0 items-center justify-end gap-2 border-t border-border/40 bg-card px-6 py-3";
+
+/** Primary action in form footer */
+export const previewFormSubmitBtn =
+  "inline-flex h-8 items-center gap-1.5 rounded-md bg-brand px-3 text-xs font-medium text-brand-foreground transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-50";
+
+/** Secondary action in form footer */
+export const previewFormCancelBtn =
+  "inline-flex h-8 items-center rounded-md px-3 text-xs font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50";
+
 
 /** Wraps expanded section content inside the task preview modal */
 export const previewExpandedPanel = cn(

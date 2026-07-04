@@ -32,6 +32,7 @@ import {
 import { fetchOrgSubtasksMap } from "@/lib/tasks/subtasks";
 import { countOpenTasks } from "@/lib/tasks/status";
 import type { TaskListItem, TaskMilestone, TaskOrgMember, TaskProjectGroup as ProjectGroup } from "@/lib/tasks/types";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({

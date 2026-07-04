@@ -24,6 +24,7 @@ type UpdateTaskInput = {
 function buildBasePayload(values: TaskFormValues) {
   return {
     title: values.title.trim(),
+    status: values.status || "todo",
     priority: values.priority,
     project_id: values.projectId || null,
     description: values.description || null,
@@ -38,6 +39,7 @@ function buildExtendedPayload(values: TaskFormValues) {
     note: values.note || null,
     estimated_hours: values.estimatedHours ? Number(values.estimatedHours) : null,
     milestone_id: values.milestoneId || null,
+    start_date: values.startDate || null,
   };
 }
 

@@ -1,9 +1,18 @@
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { AppModal } from "@/components/ui/app-modal";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { useEffect, useMemo, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { CheckSquare, ChevronRight, ListTree, Loader2, X } from "lucide-react";
+import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import { TaskForm } from "@/components/tasks/task-form";
+import {
+  hasOpenNestedOverlay,
+  isPortaledOverlayTarget,
+} from "@/components/tasks/preview/task-preview-dialog-guards";
+import {
+  previewFormCancelBtn,
+  previewFormFooter,
+  previewFormSubmitBtn,
+  previewModalShell,
+} from "@/components/tasks/preview/task-preview-styles";
 import { supabase } from "@/integrations/supabase/client";
 import { TASK_FORM_DEFAULTS, type TaskFormValues } from "@/lib/tasks/constants";
 import { createTask, TASK_MIGRATION_HINT } from "@/lib/tasks/create-task";
@@ -50,10 +59,16 @@ export function TaskFormModal({
   const [loadingTask, setLoadingTask] = useState(false);
   const [loadedTask, setLoadedTask] = useState<TaskDetailRecord | null>(null);
   const [previousAssigneeIds, setPreviousAssigneeIds] = useState<string[]>([]);
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [folderName, setFolderName] = useState<string | null>(null);
+  const [parentTitle, setParentTitle] = useState<string | null>(null);
 
   const isEdit = mode === "edit";
   const isSubtaskForm = isSubtask || Boolean(loadedTask?.parent_id);
   const formId = isEdit ? "edit-task-form" : "create-task-form";
+
+  const activeProjectId = values.projectId || defaultProjectId || loadedTask?.project_id || "";
+  const activeMilestoneId = values.milestoneId || defaultMilestoneId || loadedTask?.milestone_id || "";
 
   useEffect(() => {
     if (!open || !orgId) return;
@@ -99,9 +114,10 @@ export function TaskFormModal({
 
       if (parentTaskId) {
         Promise.all([
-          supabase.from("tasks").select("assignee_id").eq("id", parentTaskId).single(),
+          supabase.from("tasks").select("assignee_id, title").eq("id", parentTaskId).single(),
           supabase.from("task_assignees").select("user_id").eq("task_id", parentTaskId),
         ]).then(([taskRes, assigneeRes]) => {
+          if (taskRes.data?.title) setParentTitle(taskRes.data.title);
           const assigneeIds = new Set<string>();
           for (const row of assigneeRes.data ?? []) assigneeIds.add(row.user_id);
           if (taskRes.data?.assignee_id) assigneeIds.add(taskRes.data.assignee_id);
@@ -111,14 +127,50 @@ export function TaskFormModal({
             assigneeIds: [...assigneeIds],
           }));
         });
+      } else {
+        setParentTitle(null);
       }
     }
   }, [open, orgId, isEdit, taskId, defaultProjectId, defaultMilestoneId, parentTaskId]);
+
+  useEffect(() => {
+    if (!open) return;
+
+    if (activeProjectId) {
+      const fromList = projects.find((p) => p.id === activeProjectId)?.name;
+      if (fromList) {
+        setProjectName(fromList);
+      } else {
+        supabase
+          .from("projects")
+          .select("name")
+          .eq("id", activeProjectId)
+          .maybeSingle()
+          .then(({ data }) => setProjectName(data?.name ?? null));
+      }
+    } else {
+      setProjectName(null);
+    }
+
+    if (activeMilestoneId) {
+      supabase
+        .from("milestones")
+        .select("title")
+        .eq("id", activeMilestoneId)
+        .maybeSingle()
+        .then(({ data }) => setFolderName(data?.title ?? null));
+    } else {
+      setFolderName(null);
+    }
+  }, [open, activeProjectId, activeMilestoneId, projects]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
       setValues(TASK_FORM_DEFAULTS);
       setFiles([]);
+      setProjectName(null);
+      setFolderName(null);
+      setParentTitle(null);
     }
     onOpenChange(next);
   }
@@ -195,80 +247,123 @@ export function TaskFormModal({
     }
   }
 
+  const headerLabel = useMemo(() => {
+    if (isEdit) return isSubtaskForm ? "Edit subtask" : "Edit task";
+    return isSubtask ? "New subtask" : "New task";
+  }, [isEdit, isSubtaskForm, isSubtask]);
+
+  const submitLabel = isEdit
+    ? "Save changes"
+    : isSubtask
+      ? "Create subtask"
+      : "Create task";
+
   return (
-    <AppModal
-      open={open}
-      onOpenChange={handleOpenChange}
-      title={
-        isEdit
-          ? isSubtaskForm
-            ? "Edit subtask"
-            : "Edit task"
-          : isSubtask
-            ? "New subtask"
-            : "New task"
-      }
-      titleBadge={
-        isSubtaskForm ? (
-          <Badge
-            variant="secondary"
-            className="border-border/60 bg-surface px-2 py-0 text-[11px] font-medium uppercase tracking-wide text-muted-foreground"
-          >
-            Subtask
-          </Badge>
-        ) : undefined
-      }
-      description={
-        isEdit
-          ? isSubtaskForm
-            ? "Update subtask details, assignees, and attachments."
-            : "Update task details, assignees, and attachments."
-          : isSubtask
-            ? "Add a subtask with assignees, due date, description, and more."
-            : "Add a task with details, assignees, and attachments."
-      }
-      size="lg"
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleOpenChange(false)}
-            disabled={submitting}
-            className="border-border bg-background hover:bg-surface"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            disabled={submitting || loadingTask}
-            className="bg-brand text-brand-foreground hover:brightness-110"
-          >
-            {submitting && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : isSubtask ? "Create subtask" : "Create task"}
-          </Button>
-        </>
-      }
-    >
-      {loadingTask ? (
-        <p className="text-sm text-muted-foreground">Loading task…</p>
-      ) : (
-        <form id={formId} onSubmit={handleSubmit}>
-          <TaskForm
-            values={values}
-            onChange={setValues}
-            files={files}
-            onFilesChange={setFiles}
-            orgId={orgId}
-            projects={projects}
-            members={members}
-            mentionMembers={mentionMembers}
-            isSubtask={isSubtaskForm}
-            idPrefix={isEdit ? "edit-task" : "task"}
-          />
-        </form>
-      )}
-    </AppModal>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogPortal>
+        <DialogOverlay className="bg-black/45 backdrop-blur-[3px]" />
+        <DialogPrimitive.Content
+          className={previewModalShell}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (hasOpenNestedOverlay()) e.preventDefault();
+          }}
+        >
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/40 px-5 py-3">
+            <nav className="flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground">
+              <span className="font-medium text-foreground">{headerLabel}</span>
+              {projectName ? (
+                <>
+                  <ChevronRight className="size-3 shrink-0 opacity-40" />
+                  <span className="truncate">{projectName}</span>
+                </>
+              ) : (
+                <>
+                  <ChevronRight className="size-3 shrink-0 opacity-40" />
+                  <span>Standalone</span>
+                </>
+              )}
+              {folderName && (
+                <>
+                  <ChevronRight className="size-3 shrink-0 opacity-40" />
+                  <span className="truncate">{folderName}</span>
+                </>
+              )}
+              {parentTitle && (
+                <>
+                  <ChevronRight className="size-3 shrink-0 opacity-40" />
+                  <span className="truncate">{parentTitle}</span>
+                </>
+              )}
+            </nav>
+
+            <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface">
+              <X className="size-4" />
+            </DialogPrimitive.Close>
+          </header>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            {loadingTask ? (
+              <div className="flex flex-1 items-center justify-center px-6 py-12 text-sm text-muted-foreground">
+                Loading task…
+              </div>
+            ) : (
+              <form id={formId} onSubmit={handleSubmit} className="px-6 pb-6 pt-5">
+                <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  {isSubtaskForm ? (
+                    <ListTree className="size-3.5" />
+                  ) : (
+                    <CheckSquare className="size-3.5" />
+                  )}
+                  <span>{isSubtaskForm ? "Subtask" : "Task"}</span>
+                </div>
+
+                <TaskForm
+                  values={values}
+                  onChange={setValues}
+                  files={files}
+                  onFilesChange={setFiles}
+                  orgId={orgId}
+                  projects={projects}
+                  members={members}
+                  mentionMembers={mentionMembers}
+                  isSubtask={isSubtaskForm}
+                  idPrefix={isEdit ? "edit-task" : "task"}
+                />
+              </form>
+            )}
+          </div>
+
+          <footer className={previewFormFooter}>
+            <button
+              type="button"
+              onClick={() => handleOpenChange(false)}
+              disabled={submitting}
+              className={previewFormCancelBtn}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              disabled={submitting || loadingTask}
+              className={previewFormSubmitBtn}
+            >
+              {submitting && <Loader2 className="size-3.5 animate-spin" />}
+              {submitLabel}
+            </button>
+          </footer>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }
