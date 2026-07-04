@@ -3,7 +3,7 @@ import { Calendar, CornerDownLeft, Flag, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
-import { previewPopoverContent } from "@/components/tasks/preview/task-preview-styles";
+import { previewInteractiveHover, previewPopoverContent } from "@/components/tasks/preview/task-preview-styles";
 import {
   tasksIconSm,
   tasksListDivider,
@@ -187,7 +187,8 @@ export function QuickTaskAddRow({
           onClick={onCancel}
           disabled={submitting}
           className={cn(
-            "rounded-md px-2 py-1 text-muted-foreground transition-colors hover:bg-surface hover:text-foreground disabled:opacity-50",
+            "rounded-md px-2 py-1 text-muted-foreground disabled:opacity-50",
+            previewInteractiveHover,
             isPreview ? "text-[12px]" : "text-[11px]",
           )}
         >
@@ -231,7 +232,8 @@ function AssigneeControl({
         <button
           type="button"
           className={cn(
-            "inline-flex max-w-[9rem] items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground transition-colors hover:bg-surface hover:text-foreground",
+            "inline-flex max-w-[9rem] items-center gap-1 rounded-md px-1.5 py-1 text-muted-foreground",
+            previewInteractiveHover,
             selected.length > 0 && "border border-border/40 bg-surface/60 text-foreground",
           )}
           aria-label="Assignees"
@@ -308,7 +310,8 @@ function DueDateControl({
         <button
           type="button"
           className={cn(
-            "grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground",
+            "grid size-7 place-items-center rounded-md text-muted-foreground",
+            previewInteractiveHover,
             dueDate && "text-brand",
           )}
           aria-label="Due date"
@@ -361,7 +364,7 @@ function PriorityControl({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+          className={cn("grid size-7 place-items-center rounded-md text-muted-foreground", previewInteractiveHover)}
           aria-label="Priority"
         >
           <Flag className={cn(tasksIconSm, flagClass)} strokeWidth={1.75} />

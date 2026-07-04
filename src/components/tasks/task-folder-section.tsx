@@ -1,8 +1,15 @@
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Plus, Trash2 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { AnimatedCollapse, collapseChevronClass } from "@/components/ui/animated-collapse";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskListItemGroup } from "@/components/tasks/task-list-item";
+import { previewTitleField } from "@/components/tasks/preview/task-preview-styles";
 import {
   tasksCollapseBtn,
   tasksDropdown,
@@ -12,6 +19,7 @@ import {
   tasksFolderIconBtn,
   tasksFolderTitle,
   tasksIconSm,
+  tasksMenuItem,
   tasksMeta,
   tasksRowHover,
 } from "@/components/tasks/tasks-page-styles";
@@ -35,6 +43,9 @@ type TaskFolderSectionProps = {
   onToggleComplete: (task: TaskListItem) => void;
   onStatusChange: (task: TaskListItem, status: string) => void;
   onEdit: (task: TaskListItem) => void;
+  onDelete?: (task: TaskListItem) => void;
+  onDeleteFolder?: (folder: ProjectFolderView, taskCount: number) => void;
+  hasDeleteRole?: (...roles: import("@/lib/users/permissions").AppRole[]) => boolean;
   onOpenTask?: (taskId: string) => void;
   defaultExpanded?: boolean;
 };
@@ -52,6 +63,9 @@ export function TaskFolderSection({
   onToggleComplete,
   onStatusChange,
   onEdit,
+  onDelete,
+  onDeleteFolder,
+  hasDeleteRole,
   onOpenTask,
   defaultExpanded = false,
 }: TaskFolderSectionProps) {
@@ -84,7 +98,7 @@ export function TaskFolderSection({
         <button
           type="button"
           onClick={() => setExpanded((v) => !v)}
-          className={cn("min-w-0 flex-1 truncate text-left", tasksFolderTitle, "transition-colors duration-150 hover:text-muted-foreground")}
+          className={cn("min-w-0 flex-1 truncate rounded-lg px-2 py-1 text-left", tasksFolderTitle, previewTitleField)}
         >
           {folder.title}
         </button>
@@ -103,6 +117,29 @@ export function TaskFolderSection({
         >
           <Plus className={tasksIconSm} strokeWidth={dsIconStroke} />
         </button>
+
+        {onDeleteFolder && hasDeleteRole?.("owner", "admin") && (
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={tasksFolderIconBtn}
+                aria-label={`Folder options for ${folder.title}`}
+              >
+                <MoreHorizontal className={tasksIconSm} strokeWidth={dsIconStroke} />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className={tasksDropdown}>
+              <DropdownMenuItem
+                className={cn(tasksMenuItem, "text-danger focus:text-danger")}
+                onClick={() => onDeleteFolder(folder, folderTasks.length)}
+              >
+                <Trash2 className="size-3.5" strokeWidth={dsIconStroke} />
+                Delete folder
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
 
       <AnimatedCollapse open={expanded} contentClassName={tasksFolderBody}>
@@ -146,6 +183,9 @@ export function TaskFolderSection({
               onToggleComplete={onToggleComplete}
               onStatusChange={onStatusChange}
               onEdit={onEdit}
+              onDelete={onDelete}
+              userId={userId}
+              hasDeleteRole={hasDeleteRole}
               onOpenTask={onOpenTask}
               quickAdd={{ orgId, userId, members, onCreated: onTaskCreated }}
             />

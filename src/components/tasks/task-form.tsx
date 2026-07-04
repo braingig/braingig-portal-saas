@@ -3,7 +3,7 @@ import { Paperclip } from "lucide-react";
 import { FileUpload } from "@/components/ui/file-upload";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { TaskFormMeta } from "@/components/tasks/task-form-meta";
-import { previewFieldBlock, previewModalTitle } from "@/components/tasks/preview/task-preview-styles";
+import { previewFieldBlock, previewModalTitle, previewTitleField } from "@/components/tasks/preview/task-preview-styles";
 import type { TaskFormValues } from "@/lib/tasks/constants";
 import type { TaskMilestone, TaskOrgMember, TaskProjectOption } from "@/lib/tasks/types";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,17 +72,19 @@ export function TaskForm({
 
   return (
     <div className="space-y-6">
-      <input
-        id={`${idPrefix}-title`}
-        required
-        placeholder={isSubtask ? "Subtask name" : "Task name"}
-        value={values.title}
-        onChange={(e) => onChange({ ...values, title: e.target.value })}
-        className={cn(
-          "w-full border-0 bg-transparent outline-none placeholder:text-muted-foreground/45",
-          previewModalTitle,
-        )}
-      />
+      <div className={cn(previewTitleField, "-mx-2.5")}>
+        <input
+          id={`${idPrefix}-title`}
+          required
+          placeholder={isSubtask ? "Subtask name" : "Task name"}
+          value={values.title}
+          onChange={(e) => onChange({ ...values, title: e.target.value })}
+          className={cn(
+            "w-full border-0 bg-transparent outline-none placeholder:text-muted-foreground/45",
+            previewModalTitle,
+          )}
+        />
+      </div>
 
       <TaskFormMeta
         values={values}
@@ -94,7 +96,7 @@ export function TaskForm({
         isSubtask={isSubtask}
       />
 
-      <section className={cn(previewFieldBlock, "bg-surface/30")}>
+      <section className={previewFieldBlock}>
         <span className="text-xs font-medium text-muted-foreground">Description</span>
         <div className="mt-2">
           <RichTextEditor
@@ -107,7 +109,7 @@ export function TaskForm({
         </div>
       </section>
 
-      <section className={cn(previewFieldBlock, "bg-surface/30")}>
+      <section className={previewFieldBlock}>
         <span className="text-xs font-medium text-muted-foreground">Internal note</span>
         <div className="mt-2">
           <RichTextEditor

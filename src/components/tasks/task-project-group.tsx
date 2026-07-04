@@ -11,6 +11,7 @@ import {
 import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskFolderSection } from "@/components/tasks/task-folder-section";
 import { TaskListItemGroup } from "@/components/tasks/task-list-item";
+import { previewInteractiveHover } from "@/components/tasks/preview/task-preview-styles";
 import {
   tasksCollapseBtn,
   tasksDropdown,
@@ -45,6 +46,9 @@ type TaskProjectGroupProps = {
   onToggleComplete: (task: TaskListItem) => void;
   onStatusChange: (task: TaskListItem, status: string) => void;
   onEdit: (task: TaskListItem) => void;
+  onDelete?: (task: TaskListItem) => void;
+  onDeleteFolder?: (folderId: string, folderTitle: string, taskCount: number) => void;
+  hasDeleteRole?: (...roles: import("@/lib/users/permissions").AppRole[]) => boolean;
   onOpenTask?: (taskId: string) => void;
   defaultExpanded?: boolean;
 };
@@ -62,6 +66,9 @@ export function TaskProjectGroup({
   onToggleComplete,
   onStatusChange,
   onEdit,
+  onDelete,
+  onDeleteFolder,
+  hasDeleteRole,
   onOpenTask,
   defaultExpanded = true,
 }: TaskProjectGroupProps) {
@@ -203,6 +210,9 @@ export function TaskProjectGroup({
                   onToggleComplete={onToggleComplete}
                   onStatusChange={onStatusChange}
                   onEdit={onEdit}
+                  onDelete={onDelete}
+                  userId={userId}
+                  hasDeleteRole={hasDeleteRole}
                   onOpenTask={onOpenTask}
                   quickAdd={{ orgId, userId, members, onCreated: onTaskCreated }}
                 />
@@ -238,6 +248,9 @@ export function TaskProjectGroup({
                     onToggleComplete={onToggleComplete}
                     onStatusChange={onStatusChange}
                     onEdit={onEdit}
+                    onDelete={onDelete}
+                    userId={userId}
+                    hasDeleteRole={hasDeleteRole}
                     onOpenTask={onOpenTask}
                     quickAdd={{ orgId, userId, members, onCreated: onTaskCreated }}
                   />
@@ -260,6 +273,14 @@ export function TaskProjectGroup({
                 onToggleComplete={onToggleComplete}
                 onStatusChange={onStatusChange}
                 onEdit={onEdit}
+                onDelete={onDelete}
+                userId={userId}
+                hasDeleteRole={hasDeleteRole}
+                onDeleteFolder={
+                  onDeleteFolder
+                    ? (folder, taskCount) => onDeleteFolder(folder.id, folder.title, taskCount)
+                    : undefined
+                }
                 onOpenTask={onOpenTask}
                 defaultExpanded={isSearching || index === 0}
               />

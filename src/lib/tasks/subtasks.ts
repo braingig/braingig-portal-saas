@@ -5,7 +5,7 @@ import type { TaskDetailRecord, TaskListItem } from "@/lib/tasks/types";
 export async function fetchOrgSubtasksMap(orgId: string): Promise<Map<string, TaskListItem[]>> {
   const { data: rows, error } = await supabase
     .from("tasks")
-    .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id, parent_id")
+    .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id, parent_id, created_by")
     .eq("organization_id", orgId)
     .not("parent_id", "is", null)
     .order("position");
@@ -48,6 +48,7 @@ export async function fetchOrgSubtasksMap(orgId: string): Promise<Map<string, Ta
       assignee_id: assigneeId ?? row.assignee_id,
       project_id: row.project_id,
       milestone_id: row.milestone_id,
+      created_by: row.created_by,
       profiles: profile
         ? {
             full_name: profile.full_name,
@@ -70,7 +71,7 @@ export async function fetchSubtaskListItems(
 ): Promise<TaskListItem[]> {
   const { data: rows, error } = await supabase
     .from("tasks")
-    .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id")
+    .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id, created_by")
     .eq("parent_id", parentTaskId)
     .order("position");
 

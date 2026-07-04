@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { CheckSquare, ChevronRight, ListTree, Loader2, X } from "lucide-react";
+import { CheckSquare, ChevronRight, ListTree, Loader2, Trash2, X } from "lucide-react";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import { TaskForm } from "@/components/tasks/task-form";
 import {
@@ -11,15 +11,20 @@ import {
   previewFormCancelBtn,
   previewFormFooter,
   previewFormSubmitBtn,
+  previewInteractiveHover,
   previewModalShell,
 } from "@/components/tasks/preview/task-preview-styles";
 import { supabase } from "@/integrations/supabase/client";
+import { useRoles } from "@/hooks/use-role";
 import { TASK_FORM_DEFAULTS, type TaskFormValues } from "@/lib/tasks/constants";
 import { createTask, TASK_MIGRATION_HINT } from "@/lib/tasks/create-task";
+import { canDeleteTask, deleteTaskRecord, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
 import { taskToFormValues } from "@/lib/tasks/mappers";
 import { updateTask } from "@/lib/tasks/update-task";
+import { countSubtasks } from "@/lib/tasks/subtasks";
 import { fetchAssignableMembers, fetchMentionableMembers } from "@/lib/tasks/org-members";
 import type { TaskDetailRecord, TaskOrgMember, TaskProjectOption } from "@/lib/tasks/types";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type TaskFormModalProps = {
@@ -49,6 +54,7 @@ export function TaskFormModal({
   subtaskPosition = 0,
   onSuccess,
 }: TaskFormModalProps) {
+  const { hasAny } = useRoles();
   const isSubtask = Boolean(parentTaskId);
   const [values, setValues] = useState<TaskFormValues>(TASK_FORM_DEFAULTS);
   const [files, setFiles] = useState<File[]>([]);
@@ -87,22 +93,27 @@ export function TaskFormModal({
 
     if (isEdit && taskId) {
       setLoadingTask(true);
-      Promise.all([
-        supabase.from("tasks").select("*").eq("id", taskId).single(),
-        supabase.from("task_assignees").select("user_id").eq("task_id", taskId),
-      ])
-        .then(([taskRes, assigneeRes]) => {
+      void (async () => {
+        try {
+          const [taskRes, assigneeRes] = await Promise.all([
+            supabase.from("tasks").select("*").eq("id", taskId).single(),
+            supabase.from("task_assignees").select("user_id").eq("task_id", taskId),
+          ]);
+
           if (taskRes.error || !taskRes.data) {
             toast.error(taskRes.error?.message ?? "Task not found");
             return;
           }
+
           const taskData = taskRes.data as TaskDetailRecord;
           setLoadedTask(taskData);
           const assigneeIds = (assigneeRes.data ?? []).map((a) => a.user_id);
           setPreviousAssigneeIds(assigneeIds);
           setValues(taskToFormValues(taskData, assigneeIds));
-        })
-        .finally(() => setLoadingTask(false));
+        } finally {
+          setLoadingTask(false);
+        }
+      })();
     } else {
       setLoadedTask(null);
       setPreviousAssigneeIds([]);
@@ -163,6 +174,34 @@ export function TaskFormModal({
       setFolderName(null);
     }
   }, [open, activeProjectId, activeMilestoneId, projects]);
+
+  async function handleDelete() {
+    if (!isEdit || !taskId || !loadedTask) return;
+    if (!canDeleteTask(loadedTask, userId, hasAny)) {
+      toast.error("You do not have permission to delete this task");
+      return;
+    }
+
+    const subtaskCount = loadedTask.parent_id ? 0 : await countSubtasks(taskId);
+    if (!confirm(taskDeleteConfirmMessage({
+      isSubtask: Boolean(loadedTask.parent_id),
+      subtaskCount,
+    }))) return;
+
+    setSubmitting(true);
+    try {
+      await deleteTaskRecord(orgId, taskId);
+      toast.success(loadedTask.parent_id ? "Subtask deleted" : "Task deleted");
+      handleOpenChange(false);
+      onSuccess();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const showDelete = isEdit && loadedTask;
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -306,7 +345,7 @@ export function TaskFormModal({
               )}
             </nav>
 
-            <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface">
+            <DialogPrimitive.Close className={cn("grid size-8 place-items-center rounded-md text-muted-foreground", previewInteractiveHover)}>
               <X className="size-4" />
             </DialogPrimitive.Close>
           </header>
@@ -343,24 +382,39 @@ export function TaskFormModal({
             )}
           </div>
 
-          <footer className={previewFormFooter}>
-            <button
-              type="button"
-              onClick={() => handleOpenChange(false)}
-              disabled={submitting}
-              className={previewFormCancelBtn}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form={formId}
-              disabled={submitting || loadingTask}
-              className={previewFormSubmitBtn}
-            >
-              {submitting && <Loader2 className="size-3.5 animate-spin" />}
-              {submitLabel}
-            </button>
+          <footer className={cn(previewFormFooter, "justify-between")}>
+            <div>
+              {showDelete && (
+                <button
+                  type="button"
+                  onClick={() => void handleDelete()}
+                  disabled={submitting || loadingTask}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Trash2 className="size-3.5" />
+                  Delete
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => handleOpenChange(false)}
+                disabled={submitting}
+                className={previewFormCancelBtn}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form={formId}
+                disabled={submitting || loadingTask}
+                className={previewFormSubmitBtn}
+              >
+                {submitting && <Loader2 className="size-3.5 animate-spin" />}
+                {submitLabel}
+              </button>
+            </div>
           </footer>
         </DialogPrimitive.Content>
       </DialogPortal>

@@ -17,6 +17,7 @@ import type { TasksViewMode } from "@/components/tasks/tasks-view-switcher";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
+import { useRoles } from "@/hooks/use-role";
 import { fetchProfileEmails } from "@/lib/profile-emails";
 import {
   applyTasksListFilters,
@@ -29,6 +30,8 @@ import {
   groupSearchMatchRank,
   taskOrSubtasksMatchSearch,
 } from "@/lib/tasks/search";
+import { folderDeleteConfirmMessage, deleteProjectFolder } from "@/lib/projects/delete-folder";
+import { canDeleteTask, deleteTaskRecord, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
 import { fetchOrgSubtasksMap } from "@/lib/tasks/subtasks";
 import { countOpenTasks } from "@/lib/tasks/status";
 import type { TaskListItem, TaskMilestone, TaskOrgMember, TaskProjectGroup as ProjectGroup } from "@/lib/tasks/types";
@@ -43,6 +46,7 @@ export const Route = createFileRoute("/_authenticated/tasks/")({
 function TasksPage() {
   const { user } = useAuth();
   const { orgId } = useOrganization();
+  const { hasAny } = useRoles();
   const [tasks, setTasks] = useState<TaskListItem[]>([]);
   const [subtasksByParent, setSubtasksByParent] = useState<Map<string, TaskListItem[]>>(new Map());
   const [milestones, setMilestones] = useState<TaskMilestone[]>([]);
@@ -63,52 +67,67 @@ function TasksPage() {
   const loadRef = useRef<() => Promise<void>>(async () => {});
 
   async function load() {
-    if (!orgId) return;
-
-    const [tRes, pRes, mRes, subtaskMap, memberList] = await Promise.all([
-      supabase
-        .from("tasks")
-        .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id, created_by, created_at, profiles!tasks_assignee_id_fkey(full_name, avatar_url), projects(name)")
-        .eq("organization_id", orgId)
-        .is("parent_id", null)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("projects")
-        .select("id, name")
-        .eq("organization_id", orgId)
-        .order("name"),
-      supabase
-        .from("milestones")
-        .select("id, title, project_id, position")
-        .eq("organization_id", orgId)
-        .order("position", { ascending: true }),
-      fetchOrgSubtasksMap(orgId),
-      fetchAssignableMembers(orgId),
-    ]);
-
-    if (tRes.error) toast.error("Failed to load tasks: " + tRes.error.message);
-    else if (tRes.data) {
-      const rows = tRes.data as unknown as TaskListItem[];
-      const assigneeIds = rows.map((t) => t.assignee_id).filter(Boolean) as string[];
-      const emailMap = await fetchProfileEmails(orgId, assigneeIds);
-      setTasks(rows.map((task) => ({
-        ...task,
-        profiles: task.profiles && task.assignee_id
-          ? { ...task.profiles, email: emailMap.get(task.assignee_id) ?? null }
-          : task.profiles,
-      })));
+    if (!orgId) {
+      setLoading(false);
+      return;
     }
 
-    if (pRes.error) toast.error("Failed to load projects: " + pRes.error.message);
-    else if (pRes.data) setProjects(pRes.data);
+    try {
+      const [tRes, pRes, subtaskMap, memberList] = await Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, title, status, priority, due_date, assignee_id, project_id, milestone_id, created_by, created_at, profiles!tasks_assignee_id_fkey(full_name, avatar_url), projects(name)")
+          .eq("organization_id", orgId)
+          .is("parent_id", null)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("projects")
+          .select("id, name")
+          .eq("organization_id", orgId)
+          .order("name"),
+        fetchOrgSubtasksMap(orgId),
+        fetchAssignableMembers(orgId),
+      ]);
 
-    if (mRes.error) toast.error("Failed to load folders: " + mRes.error.message);
-    else if (mRes.data) setMilestones(mRes.data as TaskMilestone[]);
+      if (tRes.error) toast.error("Failed to load tasks: " + tRes.error.message);
+      else if (tRes.data) {
+        const rows = tRes.data as unknown as TaskListItem[];
+        const assigneeIds = rows.map((t) => t.assignee_id).filter(Boolean) as string[];
+        const emailMap = await fetchProfileEmails(orgId, assigneeIds);
+        setTasks(rows.map((task) => ({
+          ...task,
+          profiles: task.profiles && task.assignee_id
+            ? { ...task.profiles, email: emailMap.get(task.assignee_id) ?? null }
+            : task.profiles,
+        })));
+      }
 
-    setSubtasksByParent(subtaskMap);
-    setMembers(memberList);
+      const projectRows = pRes.data ?? [];
+      if (pRes.error) toast.error("Failed to load projects: " + pRes.error.message);
+      else setProjects(projectRows);
 
-    setLoading(false);
+      const projectIds = projectRows.map((p) => p.id);
+      if (projectIds.length > 0) {
+        const { data: milestoneRows, error: mError } = await supabase
+          .from("milestones")
+          .select("id, title, project_id, position")
+          .in("project_id", projectIds)
+          .order("position", { ascending: true });
+
+        if (mError) toast.error("Failed to load folders: " + mError.message);
+        else setMilestones((milestoneRows ?? []) as TaskMilestone[]);
+      } else {
+        setMilestones([]);
+      }
+
+      setSubtasksByParent(subtaskMap);
+      setMembers(memberList);
+    } catch (err) {
+      console.error("Failed to load tasks page:", err);
+      toast.error(err instanceof Error ? err.message : "Failed to load tasks");
+    } finally {
+      setLoading(false);
+    }
   }
 
   loadRef.current = load;
@@ -167,6 +186,47 @@ function TasksPage() {
   async function toggleStatus(task: TaskListItem) {
     changeStatus(task, task.status === "done" ? "todo" : "done");
   }
+
+  async function handleDeleteTask(task: TaskListItem) {
+    if (!orgId || !user) return;
+    if (!canDeleteTask(task, user.id, hasAny)) {
+      toast.error("You do not have permission to delete this task");
+      return;
+    }
+
+    const isSubtask = [...subtasksByParent.values()].some((subs) => subs.some((s) => s.id === task.id));
+    const subtaskCount = subtasksByParent.get(task.id)?.length ?? 0;
+    if (!confirm(taskDeleteConfirmMessage({ isSubtask, subtaskCount: isSubtask ? 0 : subtaskCount }))) return;
+
+    try {
+      await deleteTaskRecord(orgId, task.id);
+      toast.success(isSubtask ? "Subtask deleted" : "Task deleted");
+      if (previewTaskId === task.id) setPreviewTaskId(null);
+      if (editingTaskId === task.id) {
+        setEditingTaskId(null);
+        setShowEditModal(false);
+      }
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
+    }
+  }
+
+  async function handleDeleteFolder(folderId: string, folderTitle: string, taskCount: number) {
+    if (!confirm(folderDeleteConfirmMessage(taskCount))) return;
+
+    try {
+      await deleteProjectFolder(folderId);
+      toast.success(`Folder "${folderTitle}" deleted`);
+      await load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+    }
+  }
+
+  const onDeleteTask = (task: TaskListItem) => {
+    void handleDeleteTask(task);
+  };
 
   const filteredTasks = useMemo(
     () => applyTasksListFilters(tasks, listFilters, user?.id),
@@ -314,6 +374,9 @@ function TasksPage() {
                 onToggleComplete={toggleStatus}
                 onStatusChange={changeStatus}
                 onEdit={openEditModal}
+                onDelete={onDeleteTask}
+                onDeleteFolder={handleDeleteFolder}
+                hasDeleteRole={hasAny}
                 onOpenTask={openTaskPreview}
                 defaultExpanded={Boolean(searchQuery.trim()) || group.tasks.length > 0 || projectFilter === group.id}
               />

@@ -1,7 +1,15 @@
 import { format, isPast, isToday } from "date-fns";
-import { Calendar, CheckCircle2, Pencil, User } from "lucide-react";
+import { Calendar, CheckCircle2, MoreHorizontal, Pencil, Trash2, User } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { TaskStatusPicker } from "@/components/tasks/task-status-picker";
 import {
+  previewPopoverContent,
   previewStatusPill,
   previewSubtaskMeta,
   previewSubtaskTitle,
@@ -14,6 +22,7 @@ type TaskPreviewSubtaskRowProps = {
   onToggleComplete: (task: TaskListItem) => void;
   onStatusChange: (task: TaskListItem, status: string) => void;
   onEdit: (task: TaskListItem) => void;
+  onDelete?: (task: TaskListItem) => void;
   onOpenTask?: (taskId: string) => void;
   showBorder?: boolean;
 };
@@ -30,6 +39,7 @@ export function TaskPreviewSubtaskRow({
   onToggleComplete,
   onStatusChange,
   onEdit,
+  onDelete,
   onOpenTask,
   showBorder = true,
 }: TaskPreviewSubtaskRowProps) {
@@ -108,14 +118,38 @@ export function TaskPreviewSubtaskRow({
         </span>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onEdit(task)}
-        className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground opacity-0 transition-all hover:bg-surface hover:text-foreground group-hover:opacity-100"
-        aria-label={`Edit ${task.title}`}
-      >
-        <Pencil className="size-3.5" strokeWidth={1.75} />
-      </button>
+      <DropdownMenu modal={false}>
+        <DropdownMenuTrigger asChild>
+          <button
+            type="button"
+            className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+            aria-label={`Actions for ${task.title}`}
+          >
+            <MoreHorizontal className="size-3.5" strokeWidth={1.75} />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className={cn(previewPopoverContent, "w-36 p-1")}>
+          <DropdownMenuItem
+            className="rounded-md px-2.5 py-1.5 text-sm"
+            onClick={() => onEdit(task)}
+          >
+            <Pencil className="size-3.5" strokeWidth={1.75} />
+            Edit
+          </DropdownMenuItem>
+          {onDelete && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="rounded-md px-2.5 py-1.5 text-sm text-danger focus:text-danger"
+                onClick={() => onDelete(task)}
+              >
+                <Trash2 className="size-3.5" strokeWidth={1.75} />
+                Delete
+              </DropdownMenuItem>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
     </div>
   );
 }

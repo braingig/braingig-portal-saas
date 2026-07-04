@@ -15,7 +15,7 @@ import {
 } from "@/lib/tasks/checklist";
 import { logTaskAssigneeChange, logTaskFieldChange } from "@/lib/tasks/task-audit";
 import { listTaskAttachments } from "@/lib/tasks/attachments";
-import { extractMentionIdsFromHtml } from "@/lib/tasks/comment-mentions";
+import { deleteTaskRecord } from "@/lib/tasks/delete-task";
 import {
   buildCommentTree,
   countRootComments,
@@ -536,13 +536,17 @@ export function useTaskPreviewData(
   }, [user, task, orgId, assigneeIds, profiles, notifyParent]);
 
   const deleteTask = useCallback(async () => {
-    if (!task) return false;
-    const { error } = await supabase.from("tasks").delete().eq("id", task.id);
-    if (error) { toast.error(error.message); return false; }
-    toast.success("Task deleted");
-    notifyParent();
-    return true;
-  }, [task, notifyParent]);
+    if (!task || !orgId) return false;
+    try {
+      await deleteTaskRecord(orgId, task.id);
+      toast.success(task.parent_id ? "Subtask deleted" : "Task deleted");
+      notifyParent();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete task");
+      return false;
+    }
+  }, [task, orgId, notifyParent]);
 
   const reload = useCallback(() => loadData({ silent: true }), [loadData]);
 

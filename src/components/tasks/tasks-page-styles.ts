@@ -8,6 +8,7 @@ import {
   dsSearchInput,
   dsSelectTriggerClass,
 } from "@/lib/design-system";
+import { previewInteractiveHover, previewMetaCell, previewTitleField } from "@/components/tasks/preview/task-preview-styles";
 
 /** Tasks list page tokens — aligned with task preview modal surfaces */
 
@@ -17,12 +18,26 @@ export const tasksProjectSummary = "text-[10px] font-normal leading-snug text-mu
 export const tasksFolderTitle = "text-xs font-medium leading-snug text-muted-foreground";
 export const tasksListTitle = "text-xs font-normal leading-snug text-foreground";
 export const tasksSubListTitle = "text-xs font-normal leading-snug text-muted-foreground/85";
-export const tasksTitleInteractive =
-  "text-foreground transition-colors duration-150 hover:text-foreground/80";
+export const tasksTitleInteractive = "text-foreground";
+
 export const tasksMeta = "text-[10px] font-normal leading-snug text-muted-foreground";
 export const tasksSecondary = "text-xs font-normal leading-snug text-muted-foreground";
 export const tasksField = cn(tasksSecondary, "text-muted-foreground/70");
 export const tasksMuted = cn(tasksMeta, "text-muted-foreground/55");
+
+/** Per-field hover on list rows — matches preview meta cells */
+export const tasksListMetaField = cn(
+  "flex min-h-[2rem] items-center rounded-lg px-2 py-1",
+  previewMetaCell,
+);
+
+export const tasksListTitleField = cn("min-w-0 flex-1 rounded-lg px-2.5 py-1", previewTitleField);
+
+/** Row / header hover (folder rows, etc.) */
+export const tasksRowHover = cn("rounded-lg", previewInteractiveHover);
+
+/** @deprecated Use tasksListMetaField */
+export const tasksMetaCellHover = tasksListMetaField;
 
 /** Compact status pill for task list rows */
 export const tasksStatusPill =
@@ -50,14 +65,15 @@ export const tasksFilterWidth = dsFilterSelectWidth;
 export const tasksIconSm = "size-3.5";
 export const tasksIconMd = "size-4";
 
-export const tasksIconBtn =
-  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45 opacity-0 transition-all duration-150 hover:bg-surface/60 hover:text-foreground group-hover/header:opacity-100";
+export const tasksIconBtn = cn(
+  "grid size-8 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45 opacity-0 transition-all duration-150 group-hover/header:opacity-100",
+  previewInteractiveHover,
+);
 
-export const tasksCollapseBtn =
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45 transition-colors duration-150 hover:bg-surface/50 hover:text-foreground";
-
-export const tasksRowHover =
-  "transition-colors duration-150 hover:bg-surface/50";
+export const tasksCollapseBtn = cn(
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45",
+  previewInteractiveHover,
+);
 
 /** Modal-aligned card shell */
 export const tasksSectionShell =
@@ -75,8 +91,10 @@ export const tasksFolderHeader =
 
 export const tasksFolderBody = "pb-1 pl-11 sm:pl-[3.25rem]";
 
-export const tasksFolderIconBtn =
-  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45 opacity-0 transition-all duration-150 hover:bg-surface/60 hover:text-foreground group-hover/folder:opacity-100";
+export const tasksFolderIconBtn = cn(
+  "grid size-7 shrink-0 cursor-pointer place-items-center rounded-md text-muted-foreground/45 opacity-0 transition-all duration-150 group-hover/folder:opacity-100",
+  previewInteractiveHover,
+);
 
 export const tasksProjectStack = cn(dsProjectStack, "space-y-4");
 

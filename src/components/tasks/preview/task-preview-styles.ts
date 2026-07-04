@@ -56,10 +56,28 @@ export const previewModalShell = cn(
   "data-[state=closed]:zoom-out-[0.99] data-[state=open]:zoom-in-[0.99]",
 );
 
+/** Shared hover surface — visible on card in light and dark mode */
+export const previewInteractiveHover = cn(
+  "transition-colors duration-150",
+  "hover:bg-surface-2 dark:hover:bg-surface/70",
+);
+
 /** Interactive field row — label + value on one line, ClickUp-style bg hover */
 export const previewFieldRow = cn(
-  "flex min-h-[2.5rem] items-center gap-3 rounded-lg px-2.5 py-2 transition-colors duration-150",
-  "hover:bg-muted/55 dark:hover:bg-surface/70",
+  "flex min-h-[2.5rem] items-center gap-3 rounded-lg px-2.5 py-2",
+  previewInteractiveHover,
+);
+
+/** Task / subtask title control */
+export const previewTitleField = cn(
+  "rounded-lg px-2.5 py-1.5",
+  previewInteractiveHover,
+);
+
+/** Compact meta cell (status, assignee, due date on list rows) */
+export const previewMetaCell = cn(
+  "rounded-md px-1.5 py-0.5",
+  previewInteractiveHover,
 );
 
 export const previewFieldLabel = "w-[5.5rem] shrink-0 text-[11px] font-medium text-muted-foreground sm:w-[6.25rem]";
@@ -71,8 +89,8 @@ export const previewPopoverContent = cn(
 
 /** Block sections (description, note, expandables) */
 export const previewFieldBlock = cn(
-  "rounded-lg px-3 py-2.5 -mx-1 transition-colors duration-150",
-  "hover:bg-muted/55 dark:hover:bg-surface/70",
+  "rounded-lg px-3 py-2.5 -mx-1",
+  previewInteractiveHover,
 );
 
 /** Clickable value control inside a meta row — no extra hover (row handles it) */

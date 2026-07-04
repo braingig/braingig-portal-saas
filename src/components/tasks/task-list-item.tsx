@@ -1,17 +1,19 @@
 import { format, isPast, isToday } from "date-fns";
-import { Calendar, CheckCircle2, ChevronDown, ListPlus, Pencil, User } from "lucide-react";
+import { Calendar, CheckCircle2, ChevronDown, ListPlus, Pencil, Trash2, User } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnimatedCollapse, collapseChevronClass } from "@/components/ui/animated-collapse";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
+import { previewInteractiveHover } from "@/components/tasks/preview/task-preview-styles";
 import { TaskStatusPicker } from "@/components/tasks/task-status-picker";
 import {
   tasksIconSm,
   tasksListDivider,
+  tasksListMetaField,
   tasksListTitle,
+  tasksListTitleField,
   tasksMuted,
-  tasksRowHover,
   tasksSecondary,
   tasksStatusPill,
   tasksSubListTitle,
@@ -19,7 +21,7 @@ import {
 } from "@/components/tasks/tasks-page-styles";
 import { dsIconStroke } from "@/lib/design-system";
 import { filterSubtasksForSearch, taskTitleMatchesSearch } from "@/lib/tasks/search";
-import type { TaskListItem as TaskItem, TaskOrgMember } from "@/lib/tasks/types";
+import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
 /** Metadata columns — flex with explicit gaps for aligned status / assignee / due date */
@@ -37,6 +39,7 @@ type TaskListItemProps = {
   onToggleComplete: (task: TaskItem) => void;
   onStatusChange: (task: TaskItem, status: string) => void;
   onEdit: (task: TaskItem) => void;
+  onDelete?: (task: TaskItem) => void;
   onAddSubtask?: (task: TaskItem) => void;
   onOpenTask?: (taskId: string) => void;
   subtaskCount?: number;
@@ -70,6 +73,7 @@ export function TaskListItemRow({
   onToggleComplete,
   onStatusChange,
   onEdit,
+  onDelete,
   onAddSubtask,
   onOpenTask,
   subtaskCount = 0,
@@ -91,11 +95,10 @@ export function TaskListItemRow({
   return (
     <div
       className={cn(
-        "group grid min-h-[40px] grid-cols-[1rem_1fr] items-center gap-x-3 py-2 sm:grid-cols-[1rem_1fr_20rem]",
+        "group grid min-h-[40px] grid-cols-[1rem_1fr] items-center gap-x-3 py-1 sm:grid-cols-[1rem_1fr_20rem]",
         showBorder && cn("border-b", tasksListDivider),
         isSubtask ? "pl-14 pr-5 sm:pl-16" : nestedInFolder ? "pr-5" : "px-5",
-        tasksRowHover,
-        isSearchMatch && "bg-surface/40",
+        isSearchMatch && "rounded-lg bg-surface/40",
       )}
     >
       <button
@@ -112,7 +115,7 @@ export function TaskListItemRow({
       </button>
 
       <div className="flex min-w-0 items-center gap-2">
-        <div className="min-w-0 flex-1">
+        <div className={tasksListTitleField}>
           {onOpenTask ? (
             <button
               type="button"
@@ -144,7 +147,10 @@ export function TaskListItemRow({
             <button
               type="button"
               onClick={() => onAddSubtask(task)}
-              className="grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:bg-surface/80 hover:text-brand"
+              className={cn(
+                "grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:text-brand",
+                previewInteractiveHover,
+              )}
               aria-label={`Add subtask to ${task.title}`}
               title="Add subtask"
             >
@@ -156,7 +162,10 @@ export function TaskListItemRow({
             <button
               type="button"
               onClick={onToggleSubtasks}
-              className="grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:bg-surface/80 hover:text-brand"
+              className={cn(
+                "grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:text-brand",
+                previewInteractiveHover,
+              )}
               aria-expanded={subtasksExpanded}
               aria-label={subtaskToggleLabel}
               title={subtaskToggleLabel}
@@ -168,16 +177,34 @@ export function TaskListItemRow({
           <button
             type="button"
             onClick={() => onEdit(task)}
-            className="grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:bg-surface/80 hover:text-foreground"
+            className={cn(
+              "grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:text-foreground",
+              previewInteractiveHover,
+            )}
             aria-label={`Edit ${task.title}`}
           >
             <Pencil className={tasksIconSm} strokeWidth={dsIconStroke} />
           </button>
+
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => onDelete(task)}
+              className={cn(
+                "grid size-6 cursor-pointer place-items-center rounded text-muted-foreground/60 transition-colors duration-150 hover:text-danger",
+                previewInteractiveHover,
+              )}
+              aria-label={`Delete ${task.title}`}
+              title="Delete"
+            >
+              <Trash2 className={tasksIconSm} strokeWidth={dsIconStroke} />
+            </button>
+          )}
         </div>
       </div>
 
       <div className={META_ROW}>
-        <div className={META_STATUS}>
+        <div className={cn(META_STATUS, tasksListMetaField, "justify-center")}>
           <TaskStatusPicker
             status={task.status}
             onChange={(status) => onStatusChange(task, status)}
@@ -185,7 +212,7 @@ export function TaskListItemRow({
           />
         </div>
 
-        <div className={cn(META_ASSIGNEE, tasksSecondary)}>
+        <div className={cn(META_ASSIGNEE, tasksSecondary, tasksListMetaField)}>
           {task.profiles ? (
             <>
               <ProfileAvatar
@@ -210,6 +237,8 @@ export function TaskListItemRow({
             META_DUE,
             "whitespace-nowrap",
             tasksMuted,
+            tasksListMetaField,
+            "justify-end",
             overdue && "text-danger/75",
           )}
         >
@@ -229,6 +258,7 @@ export function TaskListItemGroup({
   onToggleComplete,
   onStatusChange,
   onEdit,
+  onDelete,
   onAddSubtask,
   onOpenTask,
   quickAdd,
@@ -264,6 +294,7 @@ export function TaskListItemGroup({
         onToggleComplete={onToggleComplete}
         onStatusChange={onStatusChange}
         onEdit={onEdit}
+        onDelete={onDelete}
         onAddSubtask={onAddSubtask || useInlineQuickAdd ? handleAddSubtask : undefined}
         onOpenTask={onOpenTask}
         subtaskCount={subtaskCount}
@@ -302,6 +333,7 @@ export function TaskListItemGroup({
             onToggleComplete={onToggleComplete}
             onStatusChange={onStatusChange}
             onEdit={onEdit}
+            onDelete={onDelete}
             onOpenTask={onOpenTask}
           />
         ))}

@@ -28,12 +28,14 @@ import { TaskPreviewMetaGrid } from "@/components/tasks/preview/task-preview-met
 import { TaskPreviewNote } from "@/components/tasks/preview/task-preview-note";
 import { useTaskPreviewData } from "@/components/tasks/preview/use-task-preview-data";
 import { hasOpenNestedOverlay, isPortaledOverlayTarget } from "@/components/tasks/preview/task-preview-dialog-guards";
-import { previewModalShell, previewModalTitle } from "@/components/tasks/preview/task-preview-styles";
+import { previewModalShell, previewModalTitle, previewTitleField } from "@/components/tasks/preview/task-preview-styles";
 import { useDeviceActivity } from "@/hooks/use-device-activity";
 import { useRoles } from "@/hooks/use-role";
+import { canDeleteTask, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
 import { fetchParentTaskSummary } from "@/lib/tasks/subtasks";
 import type { TaskDetailRecord } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 type TaskPreviewModalProps = {
   taskId: string | null;
@@ -82,7 +84,16 @@ export function TaskPreviewModal({
   }
 
   async function handleDelete() {
-    if (!confirm("Delete this task? This cannot be undone.")) return;
+    if (!data.task || !data.user) return;
+    if (!canDeleteTask(data.task, data.user.id, hasAny)) {
+      toast.error("You do not have permission to delete this task");
+      return;
+    }
+    const message = taskDeleteConfirmMessage({
+      isSubtask: Boolean(data.task.parent_id),
+      subtaskCount: data.subtasks.length,
+    });
+    if (!confirm(message)) return;
     const ok = await data.deleteTask();
     if (ok) onOpenChange(false);
   }
@@ -196,14 +207,10 @@ export function TaskPreviewModal({
                         <DropdownMenuItem onClick={() => setShowEditModal(true)}>
                           <Pencil className="size-4" /> Edit task
                         </DropdownMenuItem>
-                        {data.user?.id === data.task.created_by && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem onClick={() => void handleDelete()} className="text-danger">
-                              <Trash2 className="size-4" /> Delete
-                            </DropdownMenuItem>
-                          </>
-                        )}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onClick={() => void handleDelete()} className="text-danger">
+                          <Trash2 className="size-4" /> Delete
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                     <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface">
@@ -238,11 +245,7 @@ export function TaskPreviewModal({
                         <button
                           type="button"
                           onClick={() => setEditingTitle(true)}
-                          className={cn(
-                            "mb-5 w-full rounded-lg px-2.5 py-1.5 text-left transition-colors duration-150",
-                            "hover:bg-muted/55 dark:hover:bg-surface/70",
-                            previewModalTitle,
-                          )}
+                          className={cn("mb-5 w-full text-left", previewTitleField, previewModalTitle)}
                         >
                           {data.task.title}
                         </button>

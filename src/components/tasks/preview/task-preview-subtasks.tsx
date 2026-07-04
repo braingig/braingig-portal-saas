@@ -3,8 +3,10 @@ import { EditTaskModal } from "@/components/tasks/edit-task-modal";
 import { QuickTaskAddRow } from "@/components/tasks/quick-task-add-row";
 import { TaskPreviewSubtaskRow } from "@/components/tasks/preview/task-preview-subtask-row";
 import { previewMeta } from "@/components/tasks/preview/task-preview-styles";
+import { canDeleteTask, deleteTaskRecord, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
 import type { TaskDetailRecord, TaskListItem, TaskOrgMember } from "@/lib/tasks/types";
 import { supabase } from "@/integrations/supabase/client";
+import { useRoles } from "@/hooks/use-role";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -31,6 +33,7 @@ export function TaskPreviewSubtasks({
   createOpen: createOpenProp,
   onCreateOpenChange,
 }: TaskPreviewSubtasksProps) {
+  const { hasAny } = useRoles();
   const [createOpenInternal, setCreateOpenInternal] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
@@ -54,6 +57,22 @@ export function TaskPreviewSubtasks({
       .eq("id", task.id);
     if (error) toast.error(error.message);
     else onChange();
+  }
+
+  async function handleDeleteSubtask(task: TaskListItem) {
+    if (!canDeleteTask(task, userId, hasAny)) {
+      toast.error("You do not have permission to delete this subtask");
+      return;
+    }
+    if (!confirm(taskDeleteConfirmMessage({ isSubtask: true }))) return;
+
+    try {
+      await deleteTaskRecord(orgId, task.id);
+      toast.success("Subtask deleted");
+      onChange();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete subtask");
+    }
   }
 
   return (
@@ -89,6 +108,7 @@ export function TaskPreviewSubtasks({
               onToggleComplete={toggleComplete}
               onStatusChange={changeStatus}
               onEdit={(task) => setEditingTaskId(task.id)}
+              onDelete={handleDeleteSubtask}
               onOpenTask={onOpenTask}
             />
           ))}
