@@ -53,11 +53,28 @@ export const previewModalShell = cn(
   "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
 );
 
-/** Task preview — right sidebar panel (ClickUp-style) */
+/** ClickUp task sidebar width (fixed on tablet & desktop) */
+export const PREVIEW_SIDEBAR_WIDTH = "573px";
+
+/** Task preview overlay — stronger dim on phones (full-screen sheet) */
+export const previewSidebarOverlay = cn(
+  "bg-black/55 backdrop-blur-[2px]",
+  "md:bg-black/40",
+);
+
+/**
+ * Task preview sidebar — ClickUp-style responsive behavior:
+ * - Phones & sm (< md): full-screen sheet
+ * - md and up: fixed 573px right panel (ClickUp default width)
+ */
 export const previewSidebarShell = cn(
-  "fixed inset-y-0 right-0 z-50 flex h-svh flex-col overflow-hidden bg-card shadow-2xl outline-none",
-  "border-l border-border/50",
-  "w-full sm:w-[40vw]",
+  "fixed z-50 flex h-svh flex-col overflow-hidden bg-card shadow-2xl outline-none",
+  // Phones & sm: full-screen
+  "inset-0 w-full border-0",
+  // md+: fixed 573px sidebar docked to the right
+  "md:inset-y-0 md:right-0 md:left-auto",
+  "md:w-[573px] md:max-w-full",
+  "md:border-l md:border-border/50",
   "duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
   "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
   "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",

@@ -27,6 +27,7 @@ import { hasOpenNestedOverlay, isPortaledOverlayTarget } from "@/components/task
 import { TaskPreviewIconButton } from "@/components/tasks/preview/task-preview-icon-button";
 import {
   previewBreadcrumb,
+  previewSidebarOverlay,
   previewSidebarScroll,
   previewSidebarShell,
   previewWorkspacePanel,
@@ -131,7 +132,7 @@ export function TaskPreviewModal({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogPortal>
-          <DialogOverlay className="bg-black/40 backdrop-blur-[2px]" />
+          <DialogOverlay className={previewSidebarOverlay} />
           <DialogPrimitive.Content
             className={previewSidebarShell}
             onOpenAutoFocus={(e) => e.preventDefault()}
