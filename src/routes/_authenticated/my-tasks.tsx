@@ -19,6 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import { stripHtml } from "@/lib/format";
+import { getCommentDisplayText } from "@/lib/tasks/comment-attachments";
 import { getTaskStatusMeta, TASK_STATUS_PILL } from "@/lib/tasks/status";
 import type { TaskListItem } from "@/lib/tasks/types";
 import {
@@ -312,7 +313,7 @@ function MyTasksPage() {
         taskTitle: c.tasks.title,
         projectId: c.tasks.project_id,
         projectName: c.tasks.projects?.name ?? null,
-        body: stripHtml(c.body),
+        body: getCommentDisplayText(stripHtml(c.body)),
       });
     }
 

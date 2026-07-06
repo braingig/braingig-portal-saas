@@ -1,5 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { extractMentionIds } from "@/lib/tasks/comment-mentions";
+import { deleteTaskAttachmentsByIds } from "@/lib/tasks/attachments";
+import { extractAttachmentIdsFromBodies, getCommentDisplayText } from "@/lib/tasks/comment-attachments";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
 import { fetchProfileEmails, withProfileEmail } from "@/lib/profile-emails";
 import type { TaskDetailProfile, TaskOrgMember } from "@/lib/tasks/types";
@@ -171,7 +173,7 @@ export async function createTaskComment({
   parentId?: string | null;
   members: TaskOrgMember[];
 }): Promise<TaskCommentRecord> {
-  const mentions = extractMentionIds(body, members);
+  const mentions = extractMentionIds(getCommentDisplayText(body), members);
 
   const { data, error } = await supabase
     .from("task_comments")
@@ -219,7 +221,7 @@ export async function updateTaskComment({
   taskTitle: string;
   orgId: string;
 }): Promise<void> {
-  const mentions = extractMentionIds(body, members);
+  const mentions = extractMentionIds(getCommentDisplayText(body), members);
 
   const { error } = await supabase
     .from("task_comments")
@@ -239,7 +241,41 @@ export async function updateTaskComment({
   });
 }
 
-export async function deleteTaskComment(commentId: string): Promise<void> {
+async function collectCommentSubtreeIds(rootId: string): Promise<string[]> {
+  const ids: string[] = [rootId];
+
+  const { data, error } = await supabase
+    .from("task_comments")
+    .select("id")
+    .eq("parent_id", rootId);
+
+  if (error) throw new Error(error.message);
+
+  for (const row of data ?? []) {
+    ids.push(...(await collectCommentSubtreeIds(row.id)));
+  }
+
+  return ids;
+}
+
+export async function deleteTaskComment(commentId: string, orgId: string): Promise<void> {
+  const subtreeIds = await collectCommentSubtreeIds(commentId);
+
+  const { data: commentRows, error: fetchError } = await supabase
+    .from("task_comments")
+    .select("body")
+    .in("id", subtreeIds);
+
+  if (fetchError) throw new Error(fetchError.message);
+
+  const attachmentIds = extractAttachmentIdsFromBodies(
+    (commentRows ?? []).map((row) => row.body),
+  );
+
+  if (attachmentIds.length > 0) {
+    await deleteTaskAttachmentsByIds(orgId, attachmentIds);
+  }
+
   const { error } = await supabase.from("task_comments").delete().eq("id", commentId);
   if (error) throw new Error(error.message);
 }

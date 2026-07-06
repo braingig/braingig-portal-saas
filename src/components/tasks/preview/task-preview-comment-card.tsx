@@ -20,6 +20,11 @@ import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { CommentBody } from "@/components/tasks/details/comment-body";
 import { formatActivityTimestamp } from "@/components/tasks/details/task-activity-feed";
 import {
+  getCommentDisplayText,
+  parseCommentAttachments,
+  serializeCommentBody,
+} from "@/lib/tasks/comment-attachments";
+import {
   previewCommentCard,
   previewDropdown,
   previewMenuItem,
@@ -67,7 +72,7 @@ export function TaskPreviewCommentCard({
   className,
 }: TaskPreviewCommentCardProps) {
   const [editing, setEditing] = useState(false);
-  const [editText, setEditText] = useState(comment.body);
+  const [editText, setEditText] = useState(getCommentDisplayText(comment.body));
   const [saving, setSaving] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -82,14 +87,15 @@ export function TaskPreviewCommentCard({
   const isModal = variant === "modal" || variant === "modal-reply";
 
   useEffect(() => {
-    if (!editing) setEditText(comment.body);
+    if (!editing) setEditText(getCommentDisplayText(comment.body));
   }, [comment.body, editing]);
 
   async function handleSaveEdit() {
-    if (!editText.trim() || saving || !onUpdate) return;
+    const { attachments } = parseCommentAttachments(comment.body);
+    if ((!editText.trim() && attachments.length === 0) || saving || !onUpdate) return;
     setSaving(true);
     try {
-      await onUpdate(comment.id, editText.trim());
+      await onUpdate(comment.id, serializeCommentBody(editText.trim(), attachments));
       setEditing(false);
     } finally {
       setSaving(false);
@@ -153,7 +159,7 @@ export function TaskPreviewCommentCard({
                 {canEdit && (
                   <DropdownMenuItem
                     className={previewMenuItem}
-                    onClick={() => { setEditText(comment.body); setEditing(true); }}
+                    onClick={() => { setEditText(getCommentDisplayText(comment.body)); setEditing(true); }}
                   >
                     <Pencil className="size-4" /> Edit
                   </DropdownMenuItem>
@@ -183,14 +189,14 @@ export function TaskPreviewCommentCard({
               <button
                 type="button"
                 onClick={() => void handleSaveEdit()}
-                disabled={!editText.trim() || saving}
+                disabled={(!editText.trim() && parseCommentAttachments(comment.body).attachments.length === 0) || saving}
                 className="rounded-md bg-brand px-2.5 py-1 text-[12px] font-medium text-brand-foreground hover:brightness-110 disabled:opacity-50"
               >
                 Save
               </button>
               <button
                 type="button"
-                onClick={() => { setEditing(false); setEditText(comment.body); }}
+                onClick={() => { setEditing(false); setEditText(getCommentDisplayText(comment.body)); }}
                 className="rounded-md border border-border px-2.5 py-1 text-[12px] text-muted-foreground hover:bg-surface"
               >
                 Cancel
@@ -199,7 +205,7 @@ export function TaskPreviewCommentCard({
           </div>
         ) : (
           <div className={cn("text-[13px] leading-relaxed text-foreground/85", isModal ? "pb-1" : "pb-2.5")}>
-            <CommentBody body={comment.body} members={members} />
+            <CommentBody body={comment.body} members={members} compact={isModal} />
           </div>
         )}
       </div>

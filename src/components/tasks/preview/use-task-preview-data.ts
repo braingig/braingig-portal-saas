@@ -14,7 +14,7 @@ import {
   type TaskChecklistItem,
 } from "@/lib/tasks/checklist";
 import { logTaskAssigneeChange, logTaskFieldChange } from "@/lib/tasks/task-audit";
-import { listTaskAttachments } from "@/lib/tasks/attachments";
+import { listTaskAttachments, uploadTaskFiles } from "@/lib/tasks/attachments";
 import { deleteTaskRecord } from "@/lib/tasks/delete-task";
 import {
   buildCommentTree,
@@ -444,15 +444,17 @@ export function useTaskPreviewData(
   }, [user, task, orgId, profiles, mentionMembers, refreshComments]);
 
   const removeComment = useCallback(async (commentId: string) => {
+    if (!orgId) return;
     try {
-      await deleteTaskComment(commentId);
+      await deleteTaskComment(commentId, orgId);
       await refreshComments();
+      await loadData({ silent: true });
       notifyParent();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete comment");
       throw err;
     }
-  }, [notifyParent, refreshComments]);
+  }, [orgId, notifyParent, refreshComments, loadData]);
 
   const syncAssignees = useCallback(async (ids: string[]) => {
     if (!task) return;
@@ -660,6 +662,19 @@ export function useTaskPreviewData(
     }
   }, [checklistItems]);
 
+  const uploadTaskAttachments = useCallback(async (files: File[]) => {
+    if (!user || !task || !orgId || files.length === 0) return [];
+    const uploaded = await uploadTaskFiles(orgId, user.id, task.id, files);
+    if (!uploaded.length) {
+      toast.error("No files were uploaded");
+      throw new Error("Upload failed");
+    }
+    toast.success(uploaded.length === 1 ? "File attached" : `${uploaded.length} files attached`);
+    setAttachmentCount((count) => count + uploaded.length);
+    notifyParent();
+    return uploaded;
+  }, [user, task, orgId, notifyParent]);
+
   return {
     user,
     orgId,
@@ -698,5 +713,6 @@ export function useTaskPreviewData(
     toggleChecklistItem,
     removeChecklistItem,
     assignChecklistItem,
+    uploadTaskAttachments,
   };
 }

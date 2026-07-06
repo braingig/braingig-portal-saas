@@ -308,6 +308,7 @@ export function TaskPreviewModal({
                         onCommentSubmit={data.postComment}
                         onCommentUpdate={data.updateComment}
                         onCommentDelete={data.removeComment}
+                        onUploadCommentAttachments={data.uploadTaskAttachments}
                       />
                   </main>
                 </div>

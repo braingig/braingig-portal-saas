@@ -77,3 +77,30 @@ export async function uploadTaskFiles(
 
   return uploaded;
 }
+
+export async function deleteTaskAttachmentsByIds(orgId: string, ids: string[]): Promise<void> {
+  const unique = [...new Set(ids)];
+  if (!unique.length) return;
+
+  const { data, error } = await supabase
+    .from("file_assets")
+    .select("id, storage_path")
+    .eq("organization_id", orgId)
+    .in("id", unique);
+
+  if (error) throw error;
+  if (!data?.length) return;
+
+  const paths = data.map((row) => row.storage_path);
+  await supabase.storage.from(PROJECT_ATTACHMENTS_BUCKET).remove(paths);
+
+  const { error: deleteError } = await supabase
+    .from("file_assets")
+    .delete()
+    .in(
+      "id",
+      data.map((row) => row.id),
+    );
+
+  if (deleteError) throw deleteError;
+}

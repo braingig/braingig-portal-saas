@@ -22,6 +22,7 @@ import {
   previewTabList,
   previewTabTrigger,
 } from "@/components/tasks/preview/task-preview-styles";
+import type { CommentAttachment } from "@/lib/tasks/comment-attachments";
 import type { TaskPreviewAudit } from "@/components/tasks/preview/use-task-preview-data";
 import { countRootComments, type TaskCommentNode } from "@/lib/tasks/comments";
 import type { TaskChecklistItem } from "@/lib/tasks/checklist";
@@ -65,6 +66,7 @@ type TaskPreviewTabsPanelProps = {
   onCommentSubmit?: (body: string, parentId?: string | null) => Promise<void>;
   onCommentUpdate?: (id: string, body: string) => Promise<void>;
   onCommentDelete?: (id: string) => Promise<void>;
+  onUploadCommentAttachments?: (files: File[]) => Promise<CommentAttachment[]>;
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   subtaskCreateTrigger?: number;
@@ -209,6 +211,7 @@ export function TaskPreviewTabsPanel({
   onCommentSubmit,
   onCommentUpdate,
   onCommentDelete,
+  onUploadCommentAttachments,
   activeTab,
   onTabChange,
   subtaskCreateTrigger = 0,
@@ -383,6 +386,8 @@ export function TaskPreviewTabsPanel({
               layout="modal"
               placeholder="Write a comment…"
               submitLabel="Publish"
+              enableAttachments={Boolean(onUploadCommentAttachments)}
+              onUploadAttachments={onUploadCommentAttachments}
               onSubmit={(body) => onCommentSubmit!(body)}
               className="mb-5"
             />
@@ -440,6 +445,8 @@ export function TaskPreviewTabsPanel({
                             autoFocus
                             placeholder="Reply to comment…"
                             submitLabel="Publish"
+                            enableAttachments={Boolean(onUploadCommentAttachments)}
+                            onUploadAttachments={onUploadCommentAttachments}
                             onCancel={() => setReplyingToRootId(null)}
                             onSubmit={async (body) => {
                               await onCommentSubmit!(body, root.id);

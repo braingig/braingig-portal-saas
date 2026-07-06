@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AtSign, Paperclip, Send } from "lucide-react";
+import { AtSign, Paperclip, Send, X } from "lucide-react";
 import { MentionSuggestionsPopover } from "@/components/tasks/mention-suggestions-popover";
 import {
   filterMentionMembers,
   getMentionQuery,
   insertMention,
 } from "@/lib/tasks/comment-mentions";
+import { serializeCommentBody, type CommentAttachment } from "@/lib/tasks/comment-attachments";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { previewCommentBox } from "@/components/tasks/preview/task-preview-styles";
@@ -20,6 +21,8 @@ type CommentComposerProps = {
   onCancel?: () => void;
   className?: string;
   layout?: "side-submit" | "card" | "clickup" | "modal";
+  enableAttachments?: boolean;
+  onUploadAttachments?: (files: File[]) => Promise<CommentAttachment[]>;
 };
 
 export function CommentComposer({
@@ -32,8 +35,11 @@ export function CommentComposer({
   onCancel,
   className,
   layout = "side-submit",
+  enableAttachments = false,
+  onUploadAttachments,
 }: CommentComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
   const mentionStartRef = useRef<number | null>(null);
   const mentionCaretRef = useRef(0);
@@ -42,6 +48,7 @@ export function CommentComposer({
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const suggestions = mentionStart !== null
     ? filterMentionMembers(members, mentionQuery)
@@ -114,13 +121,33 @@ export function CommentComposer({
     });
   }
 
+  function addPendingFiles(files: FileList | null) {
+    if (!files?.length) return;
+    setPendingFiles((current) => [...current, ...Array.from(files)]);
+  }
+
+  function removePendingFile(index: number) {
+    setPendingFiles((current) => current.filter((_, i) => i !== index));
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!text.trim() || submitting) return;
+    const trimmed = text.trim();
+    if ((!trimmed && pendingFiles.length === 0) || submitting) return;
     setSubmitting(true);
     try {
-      await onSubmit(text.trim());
+      let uploaded: CommentAttachment[] = [];
+      if (pendingFiles.length > 0 && onUploadAttachments) {
+        uploaded = await onUploadAttachments(pendingFiles);
+      }
+
+      const body = serializeCommentBody(trimmed, uploaded);
+      if (!body) return;
+
+      await onSubmit(body);
       setText("");
+      setPendingFiles([]);
+      mentionStartRef.current = null;
       setMentionStart(null);
       setMentionQuery("");
     } finally {
@@ -159,8 +186,21 @@ export function CommentComposer({
   }
 
   if (layout === "modal") {
+    const canAttach = enableAttachments && Boolean(onUploadAttachments);
+    const canSubmit = Boolean(text.trim()) || pendingFiles.length > 0;
+
     return (
       <form onSubmit={handleSubmit} className={cn("relative", className)}>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={(e) => {
+            addPendingFiles(e.target.files);
+            e.target.value = "";
+          }}
+        />
         <div className={previewCommentBox}>
           <div ref={anchorRef} className="relative">
             <MentionSuggestionsPopover
@@ -184,6 +224,27 @@ export function CommentComposer({
               className="min-h-[72px] w-full resize-none bg-transparent px-1 pt-1 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground/55"
             />
           </div>
+          {pendingFiles.length > 0 && (
+            <ul className="mt-2 flex flex-wrap gap-1.5">
+              {pendingFiles.map((file, index) => (
+                <li
+                  key={`${file.name}-${file.size}-${index}`}
+                  className="inline-flex max-w-full items-center gap-1 rounded-md border border-border/60 bg-surface/40 px-2 py-1 text-[11px] text-foreground"
+                >
+                  <Paperclip className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removePendingFile(index)}
+                    className="grid size-4 shrink-0 place-items-center rounded text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                    aria-label={`Remove ${file.name}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
           <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2">
             <div className="flex items-center gap-0.5">
               <button
@@ -197,13 +258,19 @@ export function CommentComposer({
               >
                 <AtSign className="size-4" />
               </button>
-              <button
-                type="button"
-                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-                aria-label="Attach file"
-              >
-                <Paperclip className="size-4" />
-              </button>
+              {canAttach && (
+                <button
+                  type="button"
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    fileInputRef.current?.click();
+                  }}
+                  className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                  aria-label="Attach file"
+                >
+                  <Paperclip className="size-4" />
+                </button>
+              )}
             </div>
             <div className="flex items-center gap-2">
               {onCancel && (
@@ -217,7 +284,7 @@ export function CommentComposer({
               )}
               <button
                 type="submit"
-                disabled={!text.trim() || submitting}
+                disabled={!canSubmit || submitting}
                 className="inline-flex h-8 items-center rounded-lg bg-brand px-4 text-[12px] font-semibold text-brand-foreground transition-all hover:brightness-110 disabled:opacity-40"
               >
                 {submitLabel}
