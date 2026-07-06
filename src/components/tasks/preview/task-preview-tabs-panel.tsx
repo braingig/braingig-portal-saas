@@ -11,6 +11,7 @@ import {
 import { TaskDetailsWorkers } from "@/components/tasks/details/task-details-workers";
 import { TaskPreviewChecklist } from "@/components/tasks/preview/task-preview-checklist";
 import { TaskPreviewCommentCard } from "@/components/tasks/preview/task-preview-comment-card";
+import { TaskPreviewDetailsTab } from "@/components/tasks/preview/task-preview-details-tab";
 import { TaskPreviewSubtasks } from "@/components/tasks/preview/task-preview-subtasks";
 import { TaskPreviewTimeCard } from "@/components/tasks/preview/task-preview-time-card";
 import { TaskPreviewTimeDetails } from "@/components/tasks/preview/task-preview-time-details";
@@ -67,6 +68,9 @@ type TaskPreviewTabsPanelProps = {
   onCommentUpdate?: (id: string, body: string) => Promise<void>;
   onCommentDelete?: (id: string) => Promise<void>;
   onUploadCommentAttachments?: (files: File[]) => Promise<CommentAttachment[]>;
+  attachmentCount: number;
+  onSaveDescription: (value: string, previous: string) => void | Promise<void>;
+  onSaveNote: (value: string, previous: string) => void | Promise<void>;
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   subtaskCreateTrigger?: number;
@@ -212,6 +216,9 @@ export function TaskPreviewTabsPanel({
   onCommentUpdate,
   onCommentDelete,
   onUploadCommentAttachments,
+  attachmentCount,
+  onSaveDescription,
+  onSaveNote,
   activeTab,
   onTabChange,
   subtaskCreateTrigger = 0,
@@ -259,7 +266,7 @@ export function TaskPreviewTabsPanel({
   );
 
   const showComments = Boolean(onCommentSubmit && onCommentUpdate && onCommentDelete);
-  const defaultTab = task.parent_id ? (showComments ? "comments" : "activities") : "subtasks";
+  const defaultTab = "details";
   const tabValue = activeTab ?? defaultTab;
   const checklistDone = checklistItems.filter((i) => i.is_completed).length;
 
@@ -288,6 +295,17 @@ export function TaskPreviewTabsPanel({
       className="flex flex-col"
     >
       <TabsPrimitive.List className={previewTabList}>
+        <TabsPrimitive.Trigger value="details" className={previewTabTrigger}>
+          Details
+        </TabsPrimitive.Trigger>
+        {showComments && (
+          <TabsPrimitive.Trigger value="comments" className={previewTabTrigger}>
+            Comments
+            {rootCommentCount > 0 && (
+              <span className="ml-1.5 text-muted-foreground/70">{rootCommentCount}</span>
+            )}
+          </TabsPrimitive.Trigger>
+        )}
         {!task.parent_id && (
           <TabsPrimitive.Trigger value="subtasks" className={previewTabTrigger}>
             Subtasks
@@ -306,14 +324,6 @@ export function TaskPreviewTabsPanel({
             )}
           </TabsPrimitive.Trigger>
         )}
-        {showComments && (
-          <TabsPrimitive.Trigger value="comments" className={previewTabTrigger}>
-            Comments
-            {rootCommentCount > 0 && (
-              <span className="ml-1.5 text-muted-foreground/70">{rootCommentCount}</span>
-            )}
-          </TabsPrimitive.Trigger>
-        )}
         <TabsPrimitive.Trigger value="activities" className={previewTabTrigger}>
           Activities
         </TabsPrimitive.Trigger>
@@ -322,62 +332,18 @@ export function TaskPreviewTabsPanel({
         </TabsPrimitive.Trigger>
       </TabsPrimitive.List>
 
-        {!task.parent_id && (
-          <TabsPrimitive.Content value="subtasks" className={previewTabContent}>
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[13px] text-muted-foreground">Break work into smaller pieces</p>
-              <button
-                type="button"
-                onClick={() => setCreateSubtaskOpen(true)}
-                className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-              >
-                <Plus className="size-3.5" />
-                Add subtask
-              </button>
-            </div>
-            <TaskPreviewSubtasks
-              parentTask={task}
-              subtasks={subtasks}
-              orgId={orgId}
-              userId={userId}
-              members={members}
-              onChange={onReload}
-              onOpenTask={onOpenTask}
-              createOpen={createSubtaskOpen}
-              onCreateOpenChange={setCreateSubtaskOpen}
-            />
-          </TabsPrimitive.Content>
-        )}
-
-        {!task.parent_id && (
-          <TabsPrimitive.Content value="checklist" className={previewTabContent}>
-            <div className="mb-3 flex items-center justify-between">
-              <p className="text-[13px] text-muted-foreground">
-                {checklistItems.length > 0
-                  ? `${checklistDone} of ${checklistItems.length} completed`
-                  : "Track smaller steps within this task"}
-              </p>
-              <button
-                type="button"
-                onClick={() => setCreateChecklistOpen(true)}
-                className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-              >
-                <Plus className="size-3.5" />
-                Add item
-              </button>
-            </div>
-            <TaskPreviewChecklist
-              items={checklistItems}
-              members={members}
-              createOpen={createChecklistOpen}
-              onCreateOpenChange={setCreateChecklistOpen}
-              onToggle={onToggleChecklistItem}
-              onDelete={onRemoveChecklistItem}
-              onAdd={onAddChecklistItem}
-              onAssigneeChange={onAssignChecklistItem}
-            />
-          </TabsPrimitive.Content>
-        )}
+        <TabsPrimitive.Content value="details" className={previewTabContent}>
+          <TaskPreviewDetailsTab
+            task={task}
+            members={members}
+            orgId={orgId}
+            userId={userId}
+            attachmentCount={attachmentCount}
+            onSaveDescription={onSaveDescription}
+            onSaveNote={onSaveNote}
+            onAttachmentsUploaded={onReload}
+          />
+        </TabsPrimitive.Content>
 
         {showComments && (
           <TabsPrimitive.Content value="comments" className={previewTabContent}>
@@ -460,6 +426,63 @@ export function TaskPreviewTabsPanel({
                 })}
               </div>
             )}
+          </TabsPrimitive.Content>
+        )}
+
+        {!task.parent_id && (
+          <TabsPrimitive.Content value="subtasks" className={previewTabContent}>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[13px] text-muted-foreground">Break work into smaller pieces</p>
+              <button
+                type="button"
+                onClick={() => setCreateSubtaskOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+                Add subtask
+              </button>
+            </div>
+            <TaskPreviewSubtasks
+              parentTask={task}
+              subtasks={subtasks}
+              orgId={orgId}
+              userId={userId}
+              members={members}
+              onChange={onReload}
+              onOpenTask={onOpenTask}
+              createOpen={createSubtaskOpen}
+              onCreateOpenChange={setCreateSubtaskOpen}
+            />
+          </TabsPrimitive.Content>
+        )}
+
+        {!task.parent_id && (
+          <TabsPrimitive.Content value="checklist" className={previewTabContent}>
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[13px] text-muted-foreground">
+                {checklistItems.length > 0
+                  ? `${checklistDone} of ${checklistItems.length} completed`
+                  : "Track smaller steps within this task"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setCreateChecklistOpen(true)}
+                className="inline-flex items-center gap-1 rounded-lg border border-border/60 px-2.5 py-1 text-[12px] font-medium text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+              >
+                <Plus className="size-3.5" />
+                Add item
+              </button>
+            </div>
+            <TaskPreviewChecklist
+              items={checklistItems}
+              members={members}
+              createOpen={createChecklistOpen}
+              onCreateOpenChange={setCreateChecklistOpen}
+              onToggle={onToggleChecklistItem}
+              onDelete={onRemoveChecklistItem}
+              onAdd={onAddChecklistItem}
+              onAssigneeChange={onAssignChecklistItem}
+            />
           </TabsPrimitive.Content>
         )}
 

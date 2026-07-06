@@ -42,43 +42,110 @@ export const previewStatusPill =
 /** Metadata row in subtask list */
 export const previewSubtaskMeta = cn("gap-4", dsSecondary);
 
-/** Modal shell — wide split-panel layout */
+/** Modal shell — centered dialog (create/edit task forms) */
 export const previewModalShell = cn(
   "fixed z-50 flex flex-col overflow-hidden",
   "inset-3 sm:inset-4 md:inset-6",
-  "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:h-auto lg:max-h-[min(88vh,44rem)] lg:w-[min(calc(100vw-3rem),72rem)] lg:-translate-x-1/2 lg:-translate-y-1/2",
+  "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:h-auto lg:max-h-[min(92vh,52rem)] lg:w-[min(calc(100vw-3rem),56rem)] lg:-translate-x-1/2 lg:-translate-y-1/2",
   "rounded-2xl border border-border/50 bg-card shadow-2xl",
   "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
   "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
   "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
 );
 
-/** Left details column in split modal */
+/** Task preview — right sidebar panel (ClickUp-style) */
+export const previewSidebarShell = cn(
+  "fixed inset-y-0 right-0 z-50 flex h-svh flex-col overflow-hidden bg-card shadow-2xl outline-none",
+  "border-l border-border/50",
+  "w-full sm:w-[40vw]",
+  "duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out",
+  "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+  "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+);
+
+/** Scrollable sidebar body — scroll works, scrollbar hidden (ClickUp-style) */
+export const previewSidebarScroll = cn(
+  "min-h-0 flex-1 overflow-y-auto overscroll-contain",
+  "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+);
+
+/** Hide scrollbar on overflow containers inside task preview */
+export const previewScrollHidden = cn(
+  "[scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden",
+);
+
+/** Top details section in single-column modal */
 export const previewDetailsPanel = cn(
-  "flex w-full flex-col md:w-[min(20rem,36%)] md:shrink-0 md:border-r md:border-border/40",
-  "md:max-h-[min(calc(88vh-3.5rem),40.5rem)] md:overflow-y-auto md:overscroll-contain",
+  "shrink-0",
 );
 
-/** Right workspace column — tabs + content */
+/** Bottom workspace — tabs + tab content */
 export const previewWorkspacePanel = cn(
-  "flex min-w-0 flex-1 flex-col bg-surface/15",
-  "md:max-h-[min(calc(88vh-3.5rem),40.5rem)] md:overflow-y-auto md:overscroll-contain",
+  "flex min-h-0 flex-1 flex-col bg-surface/10",
 );
 
-/** Tab bar — fixed at top of workspace panel */
+/** Tab bar — sticky while sidebar scrolls */
 export const previewTabList = cn(
-  "flex shrink-0 gap-5 overflow-x-auto border-b border-border/50 bg-card/80 px-5 backdrop-blur-sm",
+  "sticky top-0 z-10 flex shrink-0 gap-5 overflow-x-auto border-b border-border/50 bg-card px-5",
+  previewScrollHidden,
 );
 
 export const previewTabTrigger = cn(
-  "relative -mb-px shrink-0 cursor-pointer whitespace-nowrap py-3.5 text-[13px] font-medium text-muted-foreground transition-colors",
+  "relative -mb-px shrink-0 cursor-pointer whitespace-nowrap py-3 text-[13px] font-medium text-muted-foreground transition-colors",
   "hover:text-foreground",
   "data-[state=active]:text-foreground",
   "data-[state=active]:border-b-2 data-[state=active]:border-brand",
 );
 
-/** Large task title in preview modal */
-export const previewModalHeading = "text-[22px] font-semibold leading-tight tracking-tight text-foreground";
+/** Large task title in preview modal — ClickUp-style */
+export const previewModalHeading = "text-[1.625rem] font-semibold leading-snug tracking-tight text-foreground";
+
+/** ClickUp v4 task fields container */
+export const previewClickupFieldsContainer = "flex flex-col";
+
+/** ClickUp v4 metadata row — fixed label column + value */
+export const previewClickupMetaRow = cn(
+  "grid grid-cols-[7.5rem_minmax(0,1fr)] items-center gap-x-2",
+  "min-h-8 py-0.5",
+);
+
+/** Icon + label in metadata row */
+export const previewClickupMetaLabel = "flex items-center gap-1.5 text-[12px] leading-none text-muted-foreground/75";
+
+/** Value column in metadata row */
+export const previewClickupRowValue = "flex min-w-0 items-center";
+
+/** Muted empty placeholder (ClickUp "Empty") */
+export const previewClickupEmpty = cn(
+  "cursor-pointer text-[13px] text-muted-foreground/50 transition-colors hover:text-muted-foreground/70",
+);
+
+/** ClickUp date placeholder buttons (Start / Due) */
+export const previewClickupDateBtn = cn(
+  "inline-flex items-center gap-1 rounded px-0.5 py-0.5 text-[13px] transition-colors hover:bg-surface/70",
+);
+
+/** ClickUp status badge group */
+export const previewClickupStatusGroup = "inline-flex items-center gap-1.5";
+
+export const previewClickupStatusBadge = cn(
+  "inline-flex items-stretch overflow-hidden rounded-md border text-[12px] leading-none",
+);
+
+export const previewClickupStatusLabel = "inline-flex items-center px-2.5 py-1.5 lowercase";
+
+export const previewClickupStatusNext = cn(
+  "inline-flex items-center border-l border-border/50 px-1.5 py-1.5 text-muted-foreground transition-colors hover:bg-black/[0.03] dark:hover:bg-white/[0.04]",
+);
+
+export const previewClickupStatusCheck = cn(
+  "grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground/70 transition-colors hover:bg-surface",
+);
+
+/** ClickUp track-time control */
+export const previewClickupTrackTime = "inline-flex items-center gap-2 text-[13px] text-foreground";
+
+export const previewClickupTrackTimePlay = "grid size-5 place-items-center rounded-full bg-muted/50";
 
 /** Breadcrumb trail in modal header */
 export const previewBreadcrumb = "text-xs font-normal text-muted-foreground/80";
@@ -95,8 +162,8 @@ export const previewMetaListLabelCompact = cn(
   "flex w-[5.5rem] shrink-0 items-center gap-1.5 pt-0.5 text-[12px] text-muted-foreground",
 );
 
-/** Tab content area — content-sized; panel scrolls when overflow */
-export const previewTabContent = "px-5 pt-4 pb-4 focus:outline-none data-[state=inactive]:hidden";
+/** Tab content — flows in sidebar scroll (no inner scroll trap) */
+export const previewTabContent = "px-5 pt-4 pb-6 focus:outline-none data-[state=inactive]:hidden";
 
 /** Attachment file card in horizontal strip */
 export const previewAttachmentCard = cn(

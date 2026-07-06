@@ -1,23 +1,39 @@
 import { useState } from "react";
 import { format, isPast, isToday, startOfDay } from "date-fns";
 import {
+  ArrowRight,
   Calendar as CalendarIcon,
+  CalendarPlus,
+  Check,
+  ChevronRight,
   CircleDot,
   Clock,
+  Flag,
+  Hourglass,
   Play,
   Square,
-  Tag,
   User,
+  X,
 } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import {
-  previewFieldValueBtn,
-  previewMetaListLabel,
-  previewMetaListLabelCompact,
-  previewMetaListRow,
+  previewClickupDateBtn,
+  previewClickupEmpty,
+  previewClickupFieldsContainer,
+  previewClickupMetaLabel,
+  previewClickupMetaRow,
+  previewClickupRowValue,
+  previewClickupStatusBadge,
+  previewClickupStatusCheck,
+  previewClickupStatusGroup,
+  previewClickupStatusLabel,
+  previewClickupStatusNext,
+  previewClickupTrackTime,
+  previewClickupTrackTimePlay,
   previewPopoverContent,
+  previewScrollHidden,
   previewSegmentedButton,
   previewSegmentedControl,
 } from "@/components/tasks/preview/task-preview-styles";
@@ -28,17 +44,15 @@ import { formatDurationHuman } from "@/lib/task-timer";
 import type { TaskDetailProfile, TaskDetailRecord, TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 
-const MAX_VISIBLE_AVATARS = 3;
-
 type TaskPreviewMetaGridProps = {
   task: TaskDetailRecord;
   assignees: TaskDetailProfile[];
   members: TaskOrgMember[];
-  compact?: boolean;
   onStatusChange: (status: string) => void;
   onPriorityChange: (priority: string) => void;
   onStartDateChange: (date: string | null) => void;
   onEndDateChange: (date: string | null) => void;
+  onEstimatedHoursChange: (hours: number | null) => void;
   onAssigneesChange: (ids: string[]) => void;
   trackedSeconds?: number;
   isTracking?: boolean;
@@ -51,7 +65,7 @@ function formatDisplayDate(date: string | null) {
   if (!date) return null;
   const d = new Date(date.includes("T") ? date : `${date}T12:00:00`);
   if (isToday(d)) return "Today";
-  return format(d, "d MMM yyyy");
+  return format(d, "MMM d");
 }
 
 function parseTaskDate(date: string | null | undefined) {
@@ -59,22 +73,25 @@ function parseTaskDate(date: string | null | undefined) {
   return new Date(date.includes("T") ? date : `${date}T12:00:00`);
 }
 
-const PRIORITY_TAG_STYLES: Record<string, string> = {
-  high: "border-pink-200/80 bg-pink-50 text-pink-700 dark:border-pink-500/30 dark:bg-pink-500/10 dark:text-pink-300",
-  medium: "border-brand/25 bg-brand/10 text-brand",
-  low: "border-violet-200/80 bg-violet-50 text-violet-700 dark:border-violet-500/30 dark:bg-violet-500/10 dark:text-violet-300",
-  urgent: "border-danger/30 bg-danger/10 text-danger",
-};
+function getNextStatus(current: string) {
+  const idx = TASK_STATUSES.findIndex((s) => s.key === current);
+  if (idx === -1) return TASK_STATUSES[0].key;
+  return TASK_STATUSES[(idx + 1) % TASK_STATUSES.length].key;
+}
+
+function isPriorityEmpty(priority: string) {
+  return !priority || priority === "medium";
+}
 
 export function TaskPreviewMetaGrid({
   task,
   assignees,
   members,
-  compact = false,
   onStatusChange,
   onPriorityChange,
   onStartDateChange,
   onEndDateChange,
+  onEstimatedHoursChange,
   onAssigneesChange,
   trackedSeconds = 0,
   isTracking = false,
@@ -86,23 +103,31 @@ export function TaskPreviewMetaGrid({
   const statusPill = TASK_STATUS_PILL[task.status] ?? TASK_STATUS_PILL.todo;
   const startLabel = formatDisplayDate(task.start_date ?? null);
   const dueLabel = formatDisplayDate(task.due_date);
-  const priorityStyle = PRIORITY_TAG_STYLES[task.priority] ?? PRIORITY_TAG_STYLES.medium;
-  const overflowCount = Math.max(0, assignees.length - MAX_VISIBLE_AVATARS);
-  const visibleAssignees = assignees.slice(0, MAX_VISIBLE_AVATARS);
+  const nextStatus = getNextStatus(task.status);
+  const nextStatusMeta = getTaskStatusMeta(nextStatus);
 
   return (
-    <div className={cn("space-y-0.5", compact && "space-y-0")}>
-      <MetaRow icon={CircleDot} label="Status" compact={compact}>
+    <div className={previewClickupFieldsContainer}>
+      <MetaRow icon={CircleDot} label="Status">
         <StatusField
           status={task.status}
           label={statusMeta.label}
-          colorClass={statusMeta.color}
           pillClass={statusPill}
+          nextStatus={nextStatus}
+          nextStatusLabel={nextStatusMeta.label}
           onChange={onStatusChange}
         />
       </MetaRow>
 
-      <MetaRow icon={CalendarIcon} label="Dates" compact={compact}>
+      <MetaRow icon={User} label="Assignees">
+        <AssigneeField
+          assignees={assignees}
+          members={members}
+          onChange={onAssigneesChange}
+        />
+      </MetaRow>
+
+      <MetaRow icon={CalendarIcon} label="Dates">
         <DueDateField
           dueDate={task.due_date}
           startDate={task.start_date ?? null}
@@ -113,26 +138,19 @@ export function TaskPreviewMetaGrid({
         />
       </MetaRow>
 
-      <MetaRow icon={User} label="Assignee" compact={compact}>
-        <AssigneeField
-          assignees={assignees}
-          members={members}
-          visibleAssignees={visibleAssignees}
-          overflowCount={overflowCount}
-          onChange={onAssigneesChange}
-        />
+      <MetaRow icon={Flag} label="Priority">
+        <PriorityField priority={task.priority} onChange={onPriorityChange} />
       </MetaRow>
 
-      <MetaRow icon={Tag} label="Priority" compact={compact}>
-        <PriorityField
-          priority={task.priority}
-          priorityStyle={priorityStyle}
-          onChange={onPriorityChange}
+      <MetaRow icon={Hourglass} label="Time estimate">
+        <TimeEstimateField
+          estimatedHours={task.estimated_hours}
+          onChange={onEstimatedHoursChange}
         />
       </MetaRow>
 
       {onToggleTimer && (
-        <MetaRow icon={Clock} label="Track time" compact={compact}>
+        <MetaRow icon={Clock} label="Track time">
           <TrackTimeField
             trackedSeconds={trackedSeconds}
             isTracking={isTracking}
@@ -142,6 +160,7 @@ export function TaskPreviewMetaGrid({
           />
         </MetaRow>
       )}
+
     </div>
   );
 }
@@ -149,23 +168,19 @@ export function TaskPreviewMetaGrid({
 function MetaRow({
   icon: Icon,
   label,
-  compact = false,
   children,
 }: {
   icon: typeof User;
   label: string;
-  compact?: boolean;
   children: React.ReactNode;
 }) {
-  const labelClass = compact ? previewMetaListLabelCompact : previewMetaListLabel;
-
   return (
-    <div className={cn(previewMetaListRow, compact && "min-h-[2.25rem] py-1")}>
-      <div className={labelClass}>
-        <Icon className="size-3.5 shrink-0 text-muted-foreground/60" strokeWidth={1.75} />
+    <div className={previewClickupMetaRow}>
+      <div className={previewClickupMetaLabel}>
+        <Icon className="size-4 shrink-0 text-muted-foreground/70" strokeWidth={1.5} />
         <span>{label}</span>
       </div>
-      <div className="min-w-0 flex-1 pt-0.5">{children}</div>
+      <div className={previewClickupRowValue}>{children}</div>
     </div>
   );
 }
@@ -173,49 +188,64 @@ function MetaRow({
 function StatusField({
   status,
   label,
-  colorClass,
   pillClass,
+  nextStatus,
+  nextStatusLabel,
   onChange,
 }: {
   status: string;
   label: string;
-  colorClass: string;
   pillClass: string;
+  nextStatus: string;
+  nextStatusLabel: string;
   onChange: (s: string) => void;
 }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <div className={previewClickupStatusGroup}>
+      <div className={cn(previewClickupStatusBadge, pillClass)}>
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" className={previewClickupStatusLabel}>
+              {label.toLowerCase()}
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className={cn(previewPopoverContent, "w-44 p-1")}>
+            {TASK_STATUSES.map((s) => (
+              <button
+                key={s.key}
+                type="button"
+                onClick={() => { onChange(s.key); setOpen(false); }}
+                className={cn(
+                  "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted/55",
+                  s.key === status && "bg-muted/40 font-medium",
+                )}
+              >
+                <span className={cn("size-1.5 rounded-full", s.color)} />
+                {s.label}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
         <button
           type="button"
-          className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[12px] font-medium transition-colors hover:opacity-90",
-            pillClass,
-          )}
+          className={previewClickupStatusNext}
+          aria-label={`Next status [${nextStatusLabel}]`}
+          onClick={() => onChange(nextStatus)}
         >
-          <span className={cn("size-2 rounded-full", colorClass)} />
-          {label}
+          <ChevronRight className="size-3.5" />
         </button>
-      </PopoverTrigger>
-      <PopoverContent align="start" className={cn(previewPopoverContent, "w-44 p-1")}>
-        {TASK_STATUSES.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => { onChange(s.key); setOpen(false); }}
-            className={cn(
-              "flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-left text-sm hover:bg-muted/55",
-              s.key === status && "bg-muted/40 font-medium",
-            )}
-          >
-            <span className={cn("size-1.5 rounded-full", s.color)} />
-            {s.label}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
+      </div>
+      <button
+        type="button"
+        className={previewClickupStatusCheck}
+        aria-label="Mark as done"
+        onClick={() => onChange("done")}
+      >
+        <Check className="size-4" strokeWidth={2.25} />
+      </button>
+    </div>
   );
 }
 
@@ -247,12 +277,10 @@ function DueDateField({
       && !isToday(new Date(dueDate.includes("T") ? dueDate : `${dueDate}T12:00:00`))
     : false;
 
-  const displayText = (() => {
-    if (startLabel && dueLabel) return `${startLabel} → ${dueLabel}`;
-    if (startLabel) return `${startLabel} → End`;
-    if (dueLabel) return dueLabel;
-    return null;
-  })();
+  function openField(field: "start" | "due") {
+    setActiveField(field);
+    setOpen(true);
+  }
 
   function handleDateSelect(date: Date | undefined) {
     if (!date) return;
@@ -268,24 +296,36 @@ function DueDateField({
   }
 
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (next) setActiveField(startDate || !dueDate ? "start" : "due");
-      }}
-    >
-      <PopoverTrigger asChild>
-        <button
-          type="button"
-          className={cn(
-            "text-left text-[12px] font-medium transition-colors hover:text-brand",
-            displayText ? (isOverdue && dueLabel ? "text-danger" : "text-foreground") : "text-muted-foreground/70",
-          )}
-        >
-          {displayText ?? "Set dates"}
-        </button>
-      </PopoverTrigger>
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverAnchor asChild>
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => openField("start")}
+            className={cn(
+              previewClickupDateBtn,
+              startLabel ? "font-medium text-foreground" : previewClickupEmpty,
+            )}
+          >
+            <CalendarPlus className="size-3.5 shrink-0 opacity-70" strokeWidth={1.5} />
+            {startLabel ?? "Start"}
+          </button>
+          <ArrowRight className="size-3 shrink-0 text-muted-foreground/40" />
+          <button
+            type="button"
+            onClick={() => openField("due")}
+            className={cn(
+              previewClickupDateBtn,
+              dueLabel
+                ? cn("font-medium", isOverdue ? "text-danger" : "text-foreground")
+                : previewClickupEmpty,
+            )}
+          >
+            <CalendarPlus className="size-3.5 shrink-0 opacity-70" strokeWidth={1.5} />
+            {dueLabel ?? "Due"}
+          </button>
+        </div>
+      </PopoverAnchor>
       <PopoverContent
         align="start"
         sideOffset={8}
@@ -374,14 +414,10 @@ function DueDateField({
 function AssigneeField({
   assignees,
   members,
-  visibleAssignees,
-  overflowCount,
   onChange,
 }: {
   assignees: TaskDetailProfile[];
   members: TaskOrgMember[];
-  visibleAssignees: TaskDetailProfile[];
-  overflowCount: number;
   onChange: (ids: string[]) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -390,32 +426,43 @@ function AssigneeField({
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <button type="button" className="inline-flex flex-wrap items-center gap-2">
-          {assignees.length > 0 && (
-            <span className="flex items-center -space-x-2">
-              {visibleAssignees.map((a) => (
-                <ProfileAvatar
-                  key={a.id}
-                  userId={a.id}
-                  name={a.full_name}
-                  avatarUrl={a.avatar_url}
-                  size="sm"
-                  className="ring-2 ring-card"
-                />
-              ))}
-              {overflowCount > 0 && (
-                <span className="grid size-8 place-items-center rounded-full bg-surface-2 text-[11px] font-medium text-muted-foreground ring-2 ring-card">
-                  +{overflowCount}
+      <div className="group/assignees inline-flex max-w-full items-center gap-2">
+        <PopoverTrigger asChild>
+          <button type="button" className="inline-flex min-w-0 items-center gap-2 text-left">
+            {assignees.length === 0 ? (
+              <span className={previewClickupEmpty}>Empty</span>
+            ) : (
+              <>
+                <span className="flex shrink-0 items-center -space-x-1">
+                  {assignees.slice(0, 3).map((a) => (
+                    <ProfileAvatar
+                      key={a.id}
+                      userId={a.id}
+                      name={a.full_name}
+                      avatarUrl={a.avatar_url}
+                      size="xs"
+                      className="ring-2 ring-card"
+                    />
+                  ))}
                 </span>
-              )}
-            </span>
-          )}
-          <span className="rounded-lg border border-dashed border-border/70 px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-border hover:bg-surface/50 hover:text-foreground">
-            Add +
-          </span>
-        </button>
-      </PopoverTrigger>
+                <span className="truncate text-[13px] font-medium text-foreground">
+                  {assignees.map((a) => a.full_name).join(", ")}
+                </span>
+              </>
+            )}
+          </button>
+        </PopoverTrigger>
+        {assignees.length > 0 && (
+          <button
+            type="button"
+            aria-label="Clear assignees"
+            onClick={() => onChange([])}
+            className="grid size-5 shrink-0 place-items-center rounded text-muted-foreground/50 opacity-0 transition-opacity hover:bg-surface hover:text-muted-foreground group-hover/assignees:opacity-100"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
       <PopoverContent align="start" className={cn(previewPopoverContent, "w-52 p-2")}>
         <AssigneePicker assignees={assignees} available={available} ids={ids} onChange={onChange} />
       </PopoverContent>
@@ -435,7 +482,7 @@ function AssigneePicker({
   onChange: (ids: string[]) => void;
 }) {
   return (
-    <div className="max-h-48 space-y-1 overflow-y-auto">
+    <div className={cn("max-h-48 space-y-1 overflow-y-auto", previewScrollHidden)}>
       {assignees.map((a) => (
         <div key={a.id} className="flex items-center justify-between gap-2 rounded-md px-1 py-1">
           <div className="flex items-center gap-2">
@@ -468,27 +515,20 @@ function AssigneePicker({
 
 function PriorityField({
   priority,
-  priorityStyle,
   onChange,
 }: {
   priority: string;
-  priorityStyle: string;
   onChange: (p: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const label = TASK_PRIORITIES.find((p) => p.value === priority)?.label ?? priority;
+  const label = TASK_PRIORITIES.find((p) => p.value === priority)?.label;
+  const empty = isPriorityEmpty(priority);
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
-        <button type="button" className="inline-flex items-center gap-1.5">
-          <span className={cn(
-            "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[12px] font-medium capitalize",
-            priorityStyle,
-          )}>
-            <span className="size-1.5 rounded-full bg-current opacity-70" />
-            {label}
-          </span>
+        <button type="button" className={empty ? previewClickupEmpty : "text-[13px] font-medium text-foreground"}>
+          {empty ? "Empty" : label}
         </button>
       </PopoverTrigger>
       <PopoverContent align="start" className={cn(previewPopoverContent, "w-40 p-1")}>
@@ -505,6 +545,81 @@ function PriorityField({
             {p.label}
           </button>
         ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function TimeEstimateField({
+  estimatedHours,
+  onChange,
+}: {
+  estimatedHours: number | null;
+  onChange: (hours: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+
+  function openPopover(next: boolean) {
+    setOpen(next);
+    if (next) setDraft(estimatedHours != null ? String(estimatedHours) : "");
+  }
+
+  function save() {
+    const trimmed = draft.trim();
+    if (!trimmed) {
+      onChange(null);
+    } else {
+      const parsed = Number(trimmed);
+      if (!Number.isNaN(parsed) && parsed >= 0) onChange(parsed);
+    }
+    setOpen(false);
+  }
+
+  return (
+    <Popover open={open} onOpenChange={openPopover}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={estimatedHours == null ? previewClickupEmpty : "text-[13px] font-medium text-foreground"}
+        >
+          {estimatedHours == null ? "Empty" : `${estimatedHours}h`}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className={cn(previewPopoverContent, "w-44 p-3")}>
+        <label className="block text-[11px] font-medium text-muted-foreground">
+          Hours
+          <input
+            type="number"
+            min={0}
+            step={0.25}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            className="mt-1.5 w-full rounded-md border border-border bg-surface px-2.5 py-1.5 text-sm outline-none focus:ring-2 focus:ring-brand/30"
+            placeholder="e.g. 2"
+          />
+        </label>
+        <div className="mt-3 flex gap-2">
+          {estimatedHours != null && (
+            <button
+              type="button"
+              onClick={() => { onChange(null); setOpen(false); }}
+              className="flex-1 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground hover:bg-surface"
+            >
+              Clear
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={save}
+            className={cn(
+              "rounded-md bg-brand px-2.5 py-1.5 text-xs font-medium text-brand-foreground",
+              estimatedHours != null ? "flex-1" : "w-full",
+            )}
+          >
+            Save
+          </button>
+        </div>
       </PopoverContent>
     </Popover>
   );
@@ -530,18 +645,25 @@ function TrackTimeField({
         onClick={onToggleTimer}
         disabled={!isTracking && timerStartBlocked}
         className={cn(
-          previewFieldValueBtn,
-          "inline-flex items-center gap-1.5 text-[12px] font-medium text-foreground disabled:cursor-not-allowed disabled:opacity-60",
+          previewClickupTrackTime,
+          "transition-opacity hover:opacity-80 disabled:cursor-not-allowed disabled:opacity-60",
         )}
       >
         {isTracking ? (
-          <Square className="size-3 shrink-0 text-danger" />
+          <>
+            <span className={cn(previewClickupTrackTimePlay, "bg-danger/10")}>
+              <Square className="size-2.5 fill-danger text-danger" />
+            </span>
+            <span className="tabular-nums">{formatDurationHuman(trackedSeconds)}</span>
+          </>
         ) : (
-          <Play className="size-3 shrink-0 text-muted-foreground" />
+          <>
+            <span className={previewClickupTrackTimePlay}>
+              <Play className="size-2.5 fill-muted-foreground text-muted-foreground" />
+            </span>
+            <span>{trackedSeconds > 0 ? formatDurationHuman(trackedSeconds) : "Start"}</span>
+          </>
         )}
-        <span className="tabular-nums">
-          {trackedSeconds > 0 ? formatDurationHuman(trackedSeconds) : "Start timer"}
-        </span>
       </button>
     </TaskTimerHint>
   );

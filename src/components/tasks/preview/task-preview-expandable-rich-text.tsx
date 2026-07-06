@@ -13,7 +13,9 @@ type TaskPreviewExpandableRichTextProps = {
   html: string | null;
   members: TaskOrgMember[];
   compact?: boolean;
+  plain?: boolean;
   collapsedMaxHeight?: number;
+  collapsedLines?: 2 | 3;
   placeholder?: string;
   emptyActionLabel?: string;
   onSave: (value: string, previous: string) => void | Promise<void>;
@@ -26,7 +28,9 @@ export function TaskPreviewExpandableRichText({
   html: htmlProp,
   members,
   compact = false,
+  plain = false,
   collapsedMaxHeight = DEFAULT_COLLAPSED,
+  collapsedLines,
   placeholder = "Add content…",
   emptyActionLabel,
   onSave,
@@ -70,8 +74,12 @@ export function TaskPreviewExpandableRichText({
     }
     const el = contentRef.current;
     if (!el) return;
+    if (collapsedLines) {
+      setCanExpand(el.scrollHeight > el.clientHeight + 1);
+      return;
+    }
     setCanExpand(el.scrollHeight > collapsedMaxHeight + 1);
-  }, [html, editing, expanded, empty, collapsedMaxHeight]);
+  }, [html, editing, expanded, empty, collapsedMaxHeight, collapsedLines]);
 
   useEffect(() => () => {
     clearTimeout(timer.current);
@@ -121,8 +129,9 @@ export function TaskPreviewExpandableRichText({
         type="button"
         onClick={startEditing}
         className={cn(
-          "rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground/70 transition-colors",
-          "hover:bg-surface/60 hover:text-brand",
+          plain
+            ? "text-[13px] text-muted-foreground/55 transition-colors hover:text-brand"
+            : "rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground/70 transition-colors hover:bg-surface/60 hover:text-brand",
         )}
       >
         {actionLabel}
@@ -155,16 +164,16 @@ export function TaskPreviewExpandableRichText({
   }
 
   return (
-    <section className={cn(previewFieldBlock, !empty && "cursor-default")}>
-      <span className={labelClass}>{label}</span>
+    <section className={cn(!plain && previewFieldBlock, !empty && "cursor-default")}>
+      {!plain && <span className={labelClass}>{label}</span>}
       {empty ? (
         <button
           type="button"
           onClick={startEditing}
           className={cn(
-            "mt-1.5 rounded-md px-1 py-0.5 text-left transition-colors",
-            compact ? "text-[12px] text-muted-foreground/70" : "text-[13px] text-muted-foreground/70",
-            "hover:bg-surface/60 hover:text-brand",
+            plain ? "text-[13px] text-muted-foreground/55" : "mt-1.5 rounded-md px-1 py-0.5 text-left transition-colors",
+            !plain && (compact ? "text-[12px] text-muted-foreground/70" : "text-[13px] text-muted-foreground/70"),
+            !plain && "hover:bg-surface/60 hover:text-brand",
           )}
         >
           {actionLabel}
@@ -174,15 +183,17 @@ export function TaskPreviewExpandableRichText({
           <div
             ref={contentRef}
             className={cn(
-              "mt-1.5 text-muted-foreground",
-              compact ? "text-[12px] leading-relaxed" : "text-[13px] leading-relaxed",
-              !expanded && "overflow-hidden",
+              plain ? "text-[13px] leading-snug text-foreground/85" : "mt-1.5 text-muted-foreground",
+              !plain && (compact ? "text-[12px] leading-snug" : "text-[13px] leading-snug"),
+              !expanded && collapsedLines === 2 && "line-clamp-2",
+              !expanded && collapsedLines === 3 && "line-clamp-3",
+              !expanded && !collapsedLines && "overflow-hidden",
             )}
-            style={!expanded ? { maxHeight: collapsedMaxHeight } : undefined}
+            style={!expanded && !collapsedLines ? { maxHeight: collapsedMaxHeight } : undefined}
           >
             <RichTextContent html={html} />
           </div>
-          <div className="mt-1.5 flex items-center gap-2">
+          <div className={cn("flex items-center gap-2", plain ? "mt-2" : "mt-1.5")}>
             {(canExpand || expanded) && (
               <button
                 type="button"

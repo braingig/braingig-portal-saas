@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
@@ -27,8 +27,8 @@ import { hasOpenNestedOverlay, isPortaledOverlayTarget } from "@/components/task
 import { TaskPreviewIconButton } from "@/components/tasks/preview/task-preview-icon-button";
 import {
   previewBreadcrumb,
-  previewDetailsPanel,
-  previewModalShell,
+  previewSidebarScroll,
+  previewSidebarShell,
   previewWorkspacePanel,
 } from "@/components/tasks/preview/task-preview-styles";
 import { useDeviceActivity } from "@/hooks/use-device-activity";
@@ -57,10 +57,9 @@ export function TaskPreviewModal({
   const { hasAny } = useRoles();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
-  const [activeTab, setActiveTab] = useState("subtasks");
+  const [activeTab, setActiveTab] = useState("details");
   const [subtaskCreateTrigger, setSubtaskCreateTrigger] = useState(0);
   const [parentTask, setParentTask] = useState<Pick<TaskDetailRecord, "id" | "title"> | null>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const data = useTaskPreviewData(taskId, open, onUpdated);
 
@@ -79,9 +78,9 @@ export function TaskPreviewModal({
   useEffect(() => {
     if (open) {
       setEditingTitle(false);
-      setActiveTab(data.task?.parent_id ? "comments" : "subtasks");
+      setActiveTab("details");
     }
-  }, [open, taskId, data.task?.parent_id]);
+  }, [open, taskId]);
 
   async function handleTitleBlur(title: string) {
     if (!data.task) return;
@@ -132,9 +131,9 @@ export function TaskPreviewModal({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogPortal>
-          <DialogOverlay className="bg-black/45 backdrop-blur-[3px]" />
+          <DialogOverlay className="bg-black/40 backdrop-blur-[2px]" />
           <DialogPrimitive.Content
-            className={previewModalShell}
+            className={previewSidebarShell}
             onOpenAutoFocus={(e) => e.preventDefault()}
             onInteractOutside={(e) => {
               if (isPortaledOverlayTarget(e.target)) e.preventDefault();
@@ -243,38 +242,30 @@ export function TaskPreviewModal({
                 </header>
 
                 {data.user && data.orgId ? (
-                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:items-start md:overflow-visible">
-                  <aside className={cn(previewDetailsPanel, "order-2 md:order-1")}>
-                    <div className="px-5 py-4">
-                      <TaskPreviewDetailsPanel
-                        task={data.task}
-                        assignees={data.assignees}
-                        members={data.mentionMembers}
-                        orgId={data.orgId}
-                        userId={data.user.id}
-                        attachmentCount={data.attachmentCount}
-                        attachmentInputRef={attachmentInputRef}
-                        editingTitle={editingTitle}
-                        onEditingTitleChange={setEditingTitle}
-                        onTitleBlur={(title) => void handleTitleBlur(title)}
-                        onStatusChange={(s) => void data.patchTask({ status: s })}
-                        onPriorityChange={(p) => void data.patchTask({ priority: p })}
-                        onStartDateChange={(d) => void data.patchTask({ start_date: d })}
-                        onEndDateChange={(d) => void data.patchTask({ due_date: d })}
-                        onAssigneesChange={(ids) => void data.syncAssignees(ids)}
-                        trackedSeconds={data.trackedTotal}
-                        isTracking={data.isTracking}
-                        isAssignee={data.isAssignee}
-                        timerStartBlocked={data.timerStartBlocked}
-                        onToggleTimer={data.toggleTimer}
-                        onSaveDescription={data.saveDescription}
-                        onSaveNote={data.saveNote}
-                        onAttachmentsUploaded={data.loadData}
-                      />
-                    </div>
-                  </aside>
+                <div className={previewSidebarScroll}>
+                  <div className="px-5 py-5">
+                    <TaskPreviewDetailsPanel
+                      task={data.task}
+                      assignees={data.assignees}
+                      members={data.mentionMembers}
+                      editingTitle={editingTitle}
+                      onEditingTitleChange={setEditingTitle}
+                      onTitleBlur={(title) => void handleTitleBlur(title)}
+                      onStatusChange={(s) => void data.patchTask({ status: s })}
+                      onPriorityChange={(p) => void data.patchTask({ priority: p })}
+                      onStartDateChange={(d) => void data.patchTask({ start_date: d })}
+                      onEndDateChange={(d) => void data.patchTask({ due_date: d })}
+                      onEstimatedHoursChange={(h) => void data.patchTask({ estimated_hours: h })}
+                      onAssigneesChange={(ids) => void data.syncAssignees(ids)}
+                      trackedSeconds={data.trackedTotal}
+                      isTracking={data.isTracking}
+                      isAssignee={data.isAssignee}
+                      timerStartBlocked={data.timerStartBlocked}
+                      onToggleTimer={data.toggleTimer}
+                    />
+                  </div>
 
-                  <main className={cn(previewWorkspacePanel, "order-1 md:order-2")}>
+                  <div className={cn(previewWorkspacePanel, "border-t border-border/40")}>
                     <TaskPreviewTabsPanel
                         task={data.task}
                         orgId={data.orgId}
@@ -309,8 +300,11 @@ export function TaskPreviewModal({
                         onCommentUpdate={data.updateComment}
                         onCommentDelete={data.removeComment}
                         onUploadCommentAttachments={data.uploadTaskAttachments}
+                        attachmentCount={data.attachmentCount}
+                        onSaveDescription={data.saveDescription}
+                        onSaveNote={data.saveNote}
                       />
-                  </main>
+                  </div>
                 </div>
                 ) : (
                   <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">

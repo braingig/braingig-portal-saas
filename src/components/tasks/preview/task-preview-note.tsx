@@ -5,6 +5,8 @@ type TaskPreviewNoteProps = {
   note: string | null;
   members: TaskOrgMember[];
   compact?: boolean;
+  plain?: boolean;
+  collapsedLines?: 2 | 3;
   onSave: (value: string, previous: string) => void | Promise<void>;
 };
 
@@ -12,6 +14,8 @@ export function TaskPreviewNote({
   note,
   members,
   compact = false,
+  plain = false,
+  collapsedLines,
   onSave,
 }: TaskPreviewNoteProps) {
   if (compact) {
@@ -21,9 +25,11 @@ export function TaskPreviewNote({
         html={note}
         members={members}
         compact
-        collapsedMaxHeight={56}
+        plain={plain}
+        collapsedLines={collapsedLines ?? 3}
+        collapsedMaxHeight={plain ? 52 : 52}
         placeholder="Internal notes…"
-        emptyActionLabel="+ Add internal note"
+        emptyActionLabel={plain ? "Add note…" : "+ Add internal note"}
         onSave={onSave}
       />
     );
