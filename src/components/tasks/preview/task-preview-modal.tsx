@@ -1,17 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { format } from "date-fns";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
-  CheckSquare,
   ChevronRight,
+  ExternalLink,
   MoreHorizontal,
   Pencil,
+  Plus,
   Trash2,
   X,
 } from "lucide-react";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,14 +20,17 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { TaskDetailsActivePanel } from "@/components/tasks/details/task-details-active-panel";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
-import { TaskPreviewActivityPanel } from "@/components/tasks/preview/task-preview-activity-panel";
-import { TaskPreviewDescription } from "@/components/tasks/preview/task-preview-description";
-import { TaskPreviewExpandables } from "@/components/tasks/preview/task-preview-expandables";
-import { TaskPreviewMetaGrid } from "@/components/tasks/preview/task-preview-meta-grid";
-import { TaskPreviewNote } from "@/components/tasks/preview/task-preview-note";
+import { TaskPreviewDetailsPanel } from "@/components/tasks/preview/task-preview-details-panel";
+import { TaskPreviewTabsPanel } from "@/components/tasks/preview/task-preview-tabs-panel";
 import { useTaskPreviewData } from "@/components/tasks/preview/use-task-preview-data";
 import { hasOpenNestedOverlay, isPortaledOverlayTarget } from "@/components/tasks/preview/task-preview-dialog-guards";
-import { previewModalShell, previewModalTitle, previewTitleField } from "@/components/tasks/preview/task-preview-styles";
+import { TaskPreviewIconButton } from "@/components/tasks/preview/task-preview-icon-button";
+import {
+  previewBreadcrumb,
+  previewDetailsPanel,
+  previewModalShell,
+  previewWorkspacePanel,
+} from "@/components/tasks/preview/task-preview-styles";
 import { useDeviceActivity } from "@/hooks/use-device-activity";
 import { useRoles } from "@/hooks/use-role";
 import { canDeleteTask, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
@@ -55,7 +57,10 @@ export function TaskPreviewModal({
   const { hasAny } = useRoles();
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingTitle, setEditingTitle] = useState(false);
+  const [activeTab, setActiveTab] = useState("subtasks");
+  const [subtaskCreateTrigger, setSubtaskCreateTrigger] = useState(0);
   const [parentTask, setParentTask] = useState<Pick<TaskDetailRecord, "id" | "title"> | null>(null);
+  const attachmentInputRef = useRef<HTMLInputElement>(null);
 
   const data = useTaskPreviewData(taskId, open, onUpdated);
 
@@ -72,8 +77,11 @@ export function TaskPreviewModal({
   }, [data.task?.parent_id]);
 
   useEffect(() => {
-    if (open) setEditingTitle(false);
-  }, [open, taskId]);
+    if (open) {
+      setEditingTitle(false);
+      setActiveTab(data.task?.parent_id ? "comments" : "subtasks");
+    }
+  }, [open, taskId, data.task?.parent_id]);
 
   async function handleTitleBlur(title: string) {
     if (!data.task) return;
@@ -98,15 +106,6 @@ export function TaskPreviewModal({
     if (ok) onOpenChange(false);
   }
 
-  const createdLabel = data.task?.created_at
-    ? `Created ${format(new Date(data.task.created_at), "MMM d")}`
-    : null;
-
-  const createdBy = useMemo(
-    () => data.profiles.find((p) => p.id === data.task?.created_by) ?? null,
-    [data.profiles, data.task?.created_by],
-  );
-
   const assigneeIds = useMemo(() => data.assignees.map((a) => a.id), [data.assignees]);
 
   const activeNowUsers = data.isTracking && data.user
@@ -123,6 +122,11 @@ export function TaskPreviewModal({
         }];
     })()
     : [];
+
+  function handleAddSubtask() {
+    setActiveTab("subtasks");
+    setSubtaskCreateTrigger((n) => n + 1);
+  }
 
   return (
     <>
@@ -151,9 +155,8 @@ export function TaskPreviewModal({
               </div>
             ) : (
               <>
-                {/* Header */}
-                <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/40 px-5 py-3">
-                  <nav className="flex min-w-0 flex-1 items-center gap-1 text-xs text-muted-foreground">
+                <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border/40 px-5 py-3">
+                  <nav className={cn(previewBreadcrumb, "flex min-w-0 flex-1 items-center gap-1")}>
                     {data.task.project_id && data.projectName ? (
                       <Link
                         to="/projects/$projectId"
@@ -186,24 +189,44 @@ export function TaskPreviewModal({
                     )}
                   </nav>
 
-                  <div className="flex shrink-0 items-center gap-1">
-                    {(createdLabel || createdBy) && (
-                      <span className="mr-2 hidden max-w-[220px] truncate text-xs text-muted-foreground sm:inline">
-                        {createdBy && <>By {createdBy.full_name}</>}
-                        {createdBy && createdLabel && " · "}
-                        {createdLabel}
-                      </span>
+                  <div className="flex shrink-0 items-center gap-0.5">
+                    <TaskPreviewIconButton
+                      icon={Pencil}
+                      label="Edit task"
+                      onClick={() => setShowEditModal(true)}
+                    />
+                    {!data.task.parent_id && (
+                      <TaskPreviewIconButton
+                        icon={Plus}
+                        label="Add subtask"
+                        onClick={handleAddSubtask}
+                      />
+                    )}
+                    {data.task.project_id && (
+                      <Link
+                        to="/projects/$projectId"
+                        params={{ projectId: data.task.project_id }}
+                        onClick={() => onOpenChange(false)}
+                        className="hidden sm:contents"
+                      >
+                        <TaskPreviewIconButton
+                          icon={ExternalLink}
+                          label="Open project"
+                          onClick={() => {}}
+                        />
+                      </Link>
                     )}
                     <DropdownMenu modal={false}>
                       <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="size-8">
+                        <button
+                          type="button"
+                          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                          aria-label="More options"
+                        >
                           <MoreHorizontal className="size-4" />
-                        </Button>
+                        </button>
                       </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        onCloseAutoFocus={(e) => e.preventDefault()}
-                      >
+                      <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
                         <DropdownMenuItem onClick={() => setShowEditModal(true)}>
                           <Pencil className="size-4" /> Edit task
                         </DropdownMenuItem>
@@ -213,123 +236,86 @@ export function TaskPreviewModal({
                         </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
-                    <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground hover:bg-surface">
+                    <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground">
                       <X className="size-4" />
                     </DialogPrimitive.Close>
                   </div>
                 </header>
 
-                {/* Body: main + activity */}
-                <div className="flex min-h-0 flex-1">
-                  {/* Left — task workspace */}
-                  <div className="flex min-w-0 flex-1 flex-col overflow-y-auto overscroll-contain">
-                    <div className="px-6 pb-6 pt-5">
-                      <div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
-                        <CheckSquare className="size-3.5" />
-                        <span>Task</span>
-                      </div>
-
-                      {editingTitle ? (
-                        <input
-                          key={data.task.id}
-                          defaultValue={data.task.title}
-                          autoFocus
-                          className={cn("mb-5 w-full border-0 bg-transparent outline-none", previewModalTitle)}
-                          onBlur={(e) => void handleTitleBlur(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") e.currentTarget.blur();
-                            if (e.key === "Escape") setEditingTitle(false);
-                          }}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setEditingTitle(true)}
-                          className={cn("mb-5 w-full text-left", previewTitleField, previewModalTitle)}
-                        >
-                          {data.task.title}
-                        </button>
-                      )}
-
-                      <TaskPreviewMetaGrid
+                {data.user && data.orgId ? (
+                <div className="flex min-h-0 flex-1 flex-col overflow-y-auto md:flex-row md:items-start md:overflow-visible">
+                  <aside className={cn(previewDetailsPanel, "order-2 md:order-1")}>
+                    <div className="px-5 py-4">
+                      <TaskPreviewDetailsPanel
                         task={data.task}
                         assignees={data.assignees}
                         members={data.mentionMembers}
-                        trackedSeconds={data.trackedTotal}
-                        isTracking={data.isTracking}
-                        isAssignee={data.isAssignee}
-                        timerStartBlocked={data.timerStartBlocked}
+                        orgId={data.orgId}
+                        userId={data.user.id}
+                        attachmentCount={data.attachmentCount}
+                        attachmentInputRef={attachmentInputRef}
+                        editingTitle={editingTitle}
+                        onEditingTitleChange={setEditingTitle}
+                        onTitleBlur={(title) => void handleTitleBlur(title)}
                         onStatusChange={(s) => void data.patchTask({ status: s })}
                         onPriorityChange={(p) => void data.patchTask({ priority: p })}
                         onStartDateChange={(d) => void data.patchTask({ start_date: d })}
                         onEndDateChange={(d) => void data.patchTask({ due_date: d })}
-                        onEstimatedHoursChange={(h) => void data.patchTask({ estimated_hours: h })}
                         onAssigneesChange={(ids) => void data.syncAssignees(ids)}
+                        trackedSeconds={data.trackedTotal}
+                        isTracking={data.isTracking}
+                        isAssignee={data.isAssignee}
+                        timerStartBlocked={data.timerStartBlocked}
                         onToggleTimer={data.toggleTimer}
+                        onSaveDescription={data.saveDescription}
+                        onSaveNote={data.saveNote}
+                        onAttachmentsUploaded={data.loadData}
                       />
-
-                      <div className="mt-6">
-                        <TaskPreviewDescription
-                          key={data.task.id}
-                          description={data.task.description}
-                          members={data.mentionMembers}
-                          onSave={data.saveDescription}
-                        />
-                      </div>
-
-                      <div className="mt-6">
-                        <TaskPreviewNote
-                          key={`${data.task.id}-note`}
-                          note={data.task.note}
-                          members={data.mentionMembers}
-                          onSave={data.saveNote}
-                        />
-                      </div>
-
-                      {data.user && data.orgId && (
-                        <TaskPreviewExpandables
-                          key={`${data.task.id}-${open}`}
-                          task={data.task}
-                          orgId={data.orgId}
-                          userId={data.user.id}
-                          members={data.mentionMembers}
-                          subtasks={data.subtasks}
-                          checklistItems={data.checklistItems}
-                          attachmentCount={data.attachmentCount}
-                          trackedTotal={data.trackedTotal}
-                          isTracking={data.isTracking}
-                          sessionTime={data.sessionTime}
-                          isAssignee={data.isAssignee}
-                          timerStartBlocked={data.timerStartBlocked}
-                          timeEntries={data.timeEntries}
-                          profiles={data.profiles}
-                          assigneeIds={assigneeIds}
-                          onOpenTask={(id) => onTaskChange?.(id)}
-                          onReload={data.loadData}
-                          onToggleTimer={data.toggleTimer}
-                          onAddChecklistItem={data.addChecklistItem}
-                          onToggleChecklistItem={data.toggleChecklistItem}
-                          onRemoveChecklistItem={data.removeChecklistItem}
-                          onAssignChecklistItem={data.assignChecklistItem}
-                        />
-                      )}
                     </div>
-                  </div>
+                  </aside>
 
-                  {/* Right — activity sidebar */}
-                  <TaskPreviewActivityPanel
-                    timeEntries={data.timeEntries}
-                    comments={data.comments}
-                    audits={data.audits}
-                    nameOf={data.nameOf}
-                    mentionMembers={data.mentionMembers}
-                    currentUserId={data.user?.id}
-                    canModerate={hasAny("owner", "admin")}
-                    onCommentSubmit={data.user ? data.postComment : undefined}
-                    onCommentUpdate={data.user ? data.updateComment : undefined}
-                    onCommentDelete={data.user ? data.removeComment : undefined}
-                  />
+                  <main className={cn(previewWorkspacePanel, "order-1 md:order-2")}>
+                    <TaskPreviewTabsPanel
+                        task={data.task}
+                        orgId={data.orgId}
+                        userId={data.user.id}
+                        members={data.mentionMembers}
+                        subtasks={data.subtasks}
+                        checklistItems={data.checklistItems}
+                        comments={data.comments}
+                        audits={data.audits}
+                        timeEntries={data.timeEntries}
+                        profiles={data.profiles}
+                        assigneeIds={assigneeIds}
+                        trackedTotal={data.trackedTotal}
+                        isTracking={data.isTracking}
+                        sessionTime={data.sessionTime}
+                        isAssignee={data.isAssignee}
+                        timerStartBlocked={data.timerStartBlocked}
+                        currentUserId={data.user.id}
+                        canModerate={hasAny("owner", "admin")}
+                        nameOf={data.nameOf}
+                        activeTab={activeTab}
+                        onTabChange={setActiveTab}
+                        subtaskCreateTrigger={subtaskCreateTrigger}
+                        onOpenTask={(id) => onTaskChange?.(id)}
+                        onReload={data.loadData}
+                        onToggleTimer={data.toggleTimer}
+                        onAddChecklistItem={data.addChecklistItem}
+                        onToggleChecklistItem={data.toggleChecklistItem}
+                        onRemoveChecklistItem={data.removeChecklistItem}
+                        onAssignChecklistItem={data.assignChecklistItem}
+                        onCommentSubmit={data.postComment}
+                        onCommentUpdate={data.updateComment}
+                        onCommentDelete={data.removeComment}
+                      />
+                  </main>
                 </div>
+                ) : (
+                  <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+                    Loading workspace…
+                  </div>
+                )}
               </>
             )}
           </DialogPrimitive.Content>

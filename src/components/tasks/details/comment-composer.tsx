@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AtSign, Send } from "lucide-react";
+import { AtSign, Paperclip, Send } from "lucide-react";
 import { MentionSuggestionsPopover } from "@/components/tasks/mention-suggestions-popover";
 import {
   filterMentionMembers,
@@ -8,6 +8,7 @@ import {
 } from "@/lib/tasks/comment-mentions";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+import { previewCommentBox } from "@/components/tasks/preview/task-preview-styles";
 
 type CommentComposerProps = {
   members: TaskOrgMember[];
@@ -18,7 +19,7 @@ type CommentComposerProps = {
   submitLabel?: string;
   onCancel?: () => void;
   className?: string;
-  layout?: "side-submit" | "card" | "clickup";
+  layout?: "side-submit" | "card" | "clickup" | "modal";
 };
 
 export function CommentComposer({
@@ -140,6 +141,73 @@ export function CommentComposer({
       setMentionStart(null);
       setMentionQuery("");
     }
+  }
+
+  if (layout === "modal") {
+    return (
+      <form onSubmit={handleSubmit} className={cn("relative", className)}>
+        <div className={previewCommentBox}>
+          <div ref={anchorRef} className="relative">
+            <MentionSuggestionsPopover
+              open={mentionStart !== null}
+              anchorRef={anchorRef}
+              members={members}
+              query={mentionQuery}
+              activeIndex={activeIndex}
+              onSelect={applyMention}
+            />
+            <textarea
+              ref={textareaRef}
+              value={text}
+              onChange={(e) => handleChange(e.target.value)}
+              onKeyDown={handleKeyDown}
+              onClick={(e) => syncMentionState(text, e.currentTarget.selectionStart)}
+              onKeyUp={(e) => syncMentionState(text, e.currentTarget.selectionStart)}
+              placeholder={placeholder}
+              rows={compact ? 2 : 3}
+              className="min-h-[72px] w-full resize-none bg-transparent px-1 pt-1 text-[13px] leading-relaxed outline-none placeholder:text-muted-foreground/55"
+            />
+          </div>
+          <div className="mt-2 flex items-center justify-between gap-2 border-t border-border/30 pt-2">
+            <div className="flex items-center gap-0.5">
+              <button
+                type="button"
+                onClick={insertMentionTrigger}
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                aria-label="Mention someone"
+              >
+                <AtSign className="size-4" />
+              </button>
+              <button
+                type="button"
+                className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
+                aria-label="Attach file"
+              >
+                <Paperclip className="size-4" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              {onCancel && (
+                <button
+                  type="button"
+                  onClick={onCancel}
+                  className="rounded-lg px-3 py-1.5 text-[12px] font-medium text-muted-foreground hover:bg-surface"
+                >
+                  Cancel
+                </button>
+              )}
+              <button
+                type="submit"
+                disabled={!text.trim() || submitting}
+                className="inline-flex h-8 items-center rounded-lg bg-brand px-4 text-[12px] font-semibold text-brand-foreground transition-all hover:brightness-110 disabled:opacity-40"
+              >
+                {submitLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      </form>
+    );
   }
 
   if (layout === "clickup" || layout === "card") {

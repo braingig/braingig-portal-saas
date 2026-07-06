@@ -20,6 +20,7 @@ import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { CommentBody } from "@/components/tasks/details/comment-body";
 import { formatActivityTimestamp } from "@/components/tasks/details/task-activity-feed";
 import {
+  previewCommentCard,
   previewDropdown,
   previewMenuItem,
   previewMenuItemDanger,
@@ -33,7 +34,7 @@ type TaskPreviewCommentCardProps = {
   members: TaskOrgMember[];
   currentUserId?: string;
   canModerate?: boolean;
-  variant?: "default" | "reply";
+  variant?: "default" | "reply" | "modal" | "modal-reply";
   showReplyMeta?: boolean;
   showActions?: boolean;
   repliesExpanded?: boolean;
@@ -77,7 +78,8 @@ export function TaskPreviewCommentCard({
   const canDelete = isAuthor || canModerate;
   const edited = wasEdited(comment.created_at, comment.updated_at);
   const replyCount = replyCountProp ?? comment.replies.length;
-  const isReply = variant === "reply";
+  const isReply = variant === "reply" || variant === "modal-reply";
+  const isModal = variant === "modal" || variant === "modal-reply";
 
   useEffect(() => {
     if (!editing) setEditText(comment.body);
@@ -107,23 +109,27 @@ export function TaskPreviewCommentCard({
 
   return (
     <article className={cn(
-      isReply
-        ? "rounded-md border border-border/40 bg-surface/30"
-        : "rounded-lg border border-border/60 bg-card shadow-sm",
+      isModal
+        ? isReply
+          ? "rounded-md border border-border/40 bg-surface/25 px-2.5 py-2"
+          : previewCommentCard
+        : isReply
+          ? "rounded-md border border-border/40 bg-surface/30"
+          : "rounded-lg border border-border/60 bg-card shadow-sm",
       className,
     )}>
-      <div className="px-3 pt-2.5">
-        <div className="mb-2 flex items-start gap-2">
+      <div className={cn(isModal ? "px-0 pt-0" : "px-3 pt-2.5")}>
+        <div className="mb-2 flex items-start gap-2.5">
           <ProfileAvatar
             userId={comment.author_id}
             name={author?.full_name}
             avatarUrl={author?.avatar_url}
             email={author?.email}
-            size="xs"
+            size={isModal ? "sm" : "xs"}
           />
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="truncate text-[13px] font-medium text-foreground">
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[13px] font-semibold text-foreground">
                 {author?.full_name || "Member"}
               </span>
               <span className="shrink-0 text-[11px] text-muted-foreground">
@@ -192,14 +198,17 @@ export function TaskPreviewCommentCard({
             </div>
           </div>
         ) : (
-          <div className="pb-2.5 text-[13px] leading-snug text-foreground/90">
+          <div className={cn("text-[13px] leading-relaxed text-foreground/85", isModal ? "pb-1" : "pb-2.5")}>
             <CommentBody body={comment.body} members={members} />
           </div>
         )}
       </div>
 
       {!editing && !isReply && showReplyMeta && (onToggleReplies || onReply) && (
-        <div className="flex items-center justify-end gap-2 border-t border-border/40 px-3 py-1.5">
+        <div className={cn(
+          "flex items-center gap-3",
+          isModal ? "px-0 py-1" : "justify-end border-t border-border/40 px-3 py-1.5",
+        )}>
           {replyCount > 0 && onToggleReplies && (
             <button
               type="button"
@@ -207,32 +216,20 @@ export function TaskPreviewCommentCard({
               className="inline-flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-brand"
             >
               {!repliesExpanded && (
-                <span className="flex -space-x-1">
-                  {comment.replies.slice(0, 3).map((reply) => (
-                    <ProfileAvatar
-                      key={reply.id}
-                      userId={reply.author_id}
-                      name={reply.author?.full_name}
-                      avatarUrl={reply.author?.avatar_url}
-                      email={reply.author?.email}
-                      size="xs"
-                      className="ring-1 ring-card"
-                    />
-                  ))}
+                <span>
+                  {replyCount} {replyCount === 1 ? "reply" : "replies"}
                 </span>
               )}
-              <span>
-                {repliesExpanded
-                  ? "Hide replies"
-                  : `${replyCount} ${replyCount === 1 ? "reply" : "replies"}`}
-              </span>
+              {repliesExpanded && (
+                <span>Hide replies</span>
+              )}
             </button>
           )}
           {onReply && (
             <button
               type="button"
               onClick={onReply}
-              className="text-[12px] text-brand hover:underline"
+              className="text-[12px] font-medium text-muted-foreground hover:text-foreground"
             >
               Reply
             </button>

@@ -1,6 +1,10 @@
 import { Check, Trash2 } from "lucide-react";
 import { QuickChecklistAddRow, SingleAssigneeControl } from "@/components/tasks/preview/quick-checklist-add-row";
-import { previewMeta, previewSubtaskTitle } from "@/components/tasks/preview/task-preview-styles";
+import {
+  previewInteractiveHover,
+  previewMeta,
+  previewSubtaskTitle,
+} from "@/components/tasks/preview/task-preview-styles";
 import type { TaskChecklistItem } from "@/lib/tasks/checklist";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
@@ -54,7 +58,10 @@ export function TaskPreviewChecklist({
           {items.map((item) => (
             <li
               key={item.id}
-              className="group -mx-1 flex min-h-[32px] items-center gap-2 rounded-md px-1.5 py-0.5 transition-colors hover:bg-surface/50"
+              className={cn(
+                "group -mx-2 flex min-h-[32px] items-center gap-2 rounded-lg px-2 py-1",
+                previewInteractiveHover,
+              )}
             >
               <button
                 type="button"

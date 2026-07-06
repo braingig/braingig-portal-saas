@@ -20,6 +20,7 @@ type TaskPreviewTimeDetailsProps = {
   isTracking: boolean;
   sessionTime: number;
   currentUserId?: string;
+  omitWorkers?: boolean;
 };
 
 export function TaskPreviewTimeDetails({
@@ -30,6 +31,7 @@ export function TaskPreviewTimeDetails({
   isTracking,
   sessionTime,
   currentUserId,
+  omitWorkers = false,
 }: TaskPreviewTimeDetailsProps) {
   const profileMap = useMemo(
     () => new Map(profiles.map((p) => [p.id, p])),
@@ -73,11 +75,13 @@ export function TaskPreviewTimeDetails({
   );
 
   return (
-    <div className={cn("mt-3 space-y-4 border-t border-border/30 pt-3", previewExpandedPanel)}>
-      <div>
-        <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Who&apos;s working on this task</p>
-        <TaskDetailsWorkers workers={workers} bare />
-      </div>
+    <div className={cn("mt-3 space-y-4", !omitWorkers && "border-t border-border/30 pt-3", previewExpandedPanel)}>
+      {!omitWorkers && (
+        <div>
+          <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Who&apos;s working on this task</p>
+          <TaskDetailsWorkers workers={workers} bare />
+        </div>
+      )}
       <div>
         <p className="mb-1.5 text-[11px] font-medium text-muted-foreground">Today&apos;s time entries</p>
         <TaskDetailsTimeEntries entries={todayEntries} bare />

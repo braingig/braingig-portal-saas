@@ -42,24 +42,104 @@ export const previewStatusPill =
 /** Metadata row in subtask list */
 export const previewSubtaskMeta = cn("gap-4", dsSecondary);
 
-/** Modal shell — near-full viewport with responsive outer margin */
+/** Modal shell — wide split-panel layout */
 export const previewModalShell = cn(
   "fixed z-50 flex flex-col overflow-hidden",
-  "inset-4 sm:inset-5 md:inset-6 lg:inset-8",
-  // xl+: fluid centered width — grows on ultra-wide screens, never a tiny column in the middle
-  "xl:inset-y-8 xl:left-1/2 xl:right-auto xl:-translate-x-1/2",
-  "xl:w-[clamp(20rem,calc(100vw-3rem),88rem)]",
-  "2xl:inset-y-10 2xl:w-[clamp(24rem,calc(100vw-5rem),140rem)]",
+  "inset-3 sm:inset-4 md:inset-6",
+  "lg:inset-auto lg:left-1/2 lg:top-1/2 lg:h-auto lg:max-h-[min(88vh,44rem)] lg:w-[min(calc(100vw-3rem),72rem)] lg:-translate-x-1/2 lg:-translate-y-1/2",
   "rounded-2xl border border-border/50 bg-card shadow-2xl",
   "duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out",
   "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-  "data-[state=closed]:zoom-out-[0.99] data-[state=open]:zoom-in-[0.99]",
+  "data-[state=closed]:zoom-out-[0.98] data-[state=open]:zoom-in-[0.98]",
+);
+
+/** Left details column in split modal */
+export const previewDetailsPanel = cn(
+  "flex w-full flex-col md:w-[min(20rem,36%)] md:shrink-0 md:border-r md:border-border/40",
+  "md:max-h-[min(calc(88vh-3.5rem),40.5rem)] md:overflow-y-auto md:overscroll-contain",
+);
+
+/** Right workspace column — tabs + content */
+export const previewWorkspacePanel = cn(
+  "flex min-w-0 flex-1 flex-col bg-surface/15",
+  "md:max-h-[min(calc(88vh-3.5rem),40.5rem)] md:overflow-y-auto md:overscroll-contain",
+);
+
+/** Tab bar — fixed at top of workspace panel */
+export const previewTabList = cn(
+  "flex shrink-0 gap-5 overflow-x-auto border-b border-border/50 bg-card/80 px-5 backdrop-blur-sm",
+);
+
+export const previewTabTrigger = cn(
+  "relative -mb-px shrink-0 cursor-pointer whitespace-nowrap py-3.5 text-[13px] font-medium text-muted-foreground transition-colors",
+  "hover:text-foreground",
+  "data-[state=active]:text-foreground",
+  "data-[state=active]:border-b-2 data-[state=active]:border-brand",
+);
+
+/** Large task title in preview modal */
+export const previewModalHeading = "text-[22px] font-semibold leading-tight tracking-tight text-foreground";
+
+/** Breadcrumb trail in modal header */
+export const previewBreadcrumb = "text-xs font-normal text-muted-foreground/80";
+
+/** Vertical metadata list row — hover applied after previewInteractiveHover is defined */
+export const previewMetaListRowBase = "flex min-h-[2.75rem] items-start gap-3 py-2";
+
+/** Label column in metadata list */
+export const previewMetaListLabel = cn(
+  "flex w-[6.5rem] shrink-0 items-center gap-2 pt-0.5 text-[12px] text-muted-foreground",
+);
+
+export const previewMetaListLabelCompact = cn(
+  "flex w-[5.5rem] shrink-0 items-center gap-1.5 pt-0.5 text-[12px] text-muted-foreground",
+);
+
+/** Tab content area — content-sized; panel scrolls when overflow */
+export const previewTabContent = "px-5 pt-4 pb-4 focus:outline-none data-[state=inactive]:hidden";
+
+/** Attachment file card in horizontal strip */
+export const previewAttachmentCard = cn(
+  "flex w-[9.5rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border/60 bg-surface/30",
+);
+
+/** Comment composer shell in modal */
+export const previewCommentBox = cn(
+  "rounded-xl border border-border/50 bg-surface/40 p-3",
 );
 
 /** Shared hover surface — visible on card in light and dark mode */
 export const previewInteractiveHover = cn(
   "transition-colors duration-150",
   "hover:bg-surface-2 dark:hover:bg-surface/70",
+);
+
+/** Vertical metadata list row with hover */
+export const previewMetaListRow = cn(
+  previewMetaListRowBase,
+  "rounded-lg px-2 py-1.5 -mx-2",
+  previewInteractiveHover,
+);
+
+/** Comment card in modal comments tab */
+export const previewCommentCard = cn(
+  "rounded-lg border border-border/50 bg-card p-3 shadow-sm transition-colors",
+  "hover:border-border/70 hover:bg-surface/30",
+);
+
+/** Activity list row */
+export const previewActivityRow = cn(
+  "flex gap-2.5 rounded-lg px-2 py-1.5 -mx-2 transition-colors",
+  previewInteractiveHover,
+);
+
+/** Segmented filter for activity period */
+export const previewSegmentedControl = "inline-flex rounded-lg border border-border/50 bg-surface/40 p-0.5";
+
+export const previewSegmentedButton = cn(
+  "rounded-md px-2.5 py-1 text-[11px] font-medium text-muted-foreground transition-colors",
+  "hover:bg-surface/60 hover:text-foreground",
+  "data-[active=true]:bg-brand data-[active=true]:text-brand-foreground data-[active=true]:shadow-sm",
 );
 
 /** Interactive field row — label + value on one line, ClickUp-style bg hover */
