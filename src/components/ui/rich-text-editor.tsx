@@ -139,6 +139,8 @@ export function RichTextEditor({
 }: RichTextEditorProps) {
   const ref = useRef<HTMLDivElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
+  const mentionStartRef = useRef<number | null>(null);
+  const mentionCaretRef = useRef(0);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
   const [mentionQuery, setMentionQuery] = useState("");
   const [activeIndex, setActiveIndex] = useState(0);
@@ -161,23 +163,28 @@ export function RichTextEditor({
   const syncMentionState = useCallback(() => {
     const el = ref.current;
     if (!el || members.length === 0) {
+      mentionStartRef.current = null;
       setMentionStart(null);
       setMentionQuery("");
       return;
     }
     const pos = getPlainTextBeforeCaret(el);
     if (!pos) {
+      mentionStartRef.current = null;
       setMentionStart(null);
       setMentionQuery("");
       return;
     }
     const active = getMentionQuery(pos.text, pos.caret);
     if (!active) {
+      mentionStartRef.current = null;
       setMentionStart(null);
       setMentionQuery("");
       setActiveIndex(0);
       return;
     }
+    mentionStartRef.current = active.start;
+    mentionCaretRef.current = pos.caret;
     setMentionStart(active.start);
     setMentionQuery(active.query);
     setActiveIndex(0);
@@ -231,16 +238,26 @@ export function RichTextEditor({
     sync();
   }
 
+  function dismissMention() {
+    mentionStartRef.current = null;
+    setMentionStart(null);
+    setMentionQuery("");
+    setActiveIndex(0);
+  }
+
   function applyMention(member: TaskOrgMember) {
     const el = ref.current;
-    if (!el || mentionStart === null) return;
+    const start = mentionStartRef.current;
+    if (!el || start === null) return;
     const pos = getPlainTextBeforeCaret(el);
-    if (!pos) return;
-    insertMentionInEditor(el, mentionStart, pos.caret, member.full_name, member.id);
+    const caret = pos?.caret ?? mentionCaretRef.current;
+    insertMentionInEditor(el, start, caret, member.full_name, member.id);
+    mentionStartRef.current = null;
     setMentionStart(null);
     setMentionQuery("");
     setActiveIndex(0);
     sync();
+    requestAnimationFrame(() => el.focus());
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -306,6 +323,7 @@ export function RichTextEditor({
           query={mentionQuery}
           activeIndex={activeIndex}
           onSelect={applyMention}
+          onDismiss={dismissMention}
         />
 
         <div
@@ -318,7 +336,11 @@ export function RichTextEditor({
           }}
           onKeyUp={syncMentionState}
           onKeyDown={handleKeyDown}
-          onBlur={sync}
+          onBlur={(e) => {
+            const next = e.relatedTarget;
+            if (next instanceof HTMLElement && next.closest("[data-mention-suggestions]")) return;
+            sync();
+          }}
           onClick={syncMentionState}
           data-placeholder={placeholder}
           style={{ minHeight }}

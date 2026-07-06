@@ -1,7 +1,12 @@
 /** Prevent Radix Dialog from closing when interacting with portaled menus/popovers. */
+import { MENTION_SUGGESTIONS_SELECTOR } from "@/components/tasks/mention-suggestions-popover";
+
+export { MENTION_SUGGESTIONS_SELECTOR };
+
 export function isPortaledOverlayTarget(target: EventTarget | null) {
   if (!(target instanceof HTMLElement)) return false;
   return Boolean(
+    target.closest(MENTION_SUGGESTIONS_SELECTOR) ||
     target.closest("[data-radix-popper-content-wrapper]") ||
     target.closest("[data-radix-dropdown-menu-content]") ||
     target.closest("[data-radix-popover-content]") ||
@@ -18,6 +23,7 @@ export function hasNestedDialog() {
 
 export function hasOpenNestedOverlay() {
   return Boolean(
+    document.querySelector(MENTION_SUGGESTIONS_SELECTOR) ||
     document.querySelector(
       '[data-radix-dropdown-menu-content][data-state="open"], [data-radix-popover-content][data-state="open"], [data-radix-alert-dialog-content][data-state="open"], [data-radix-select-content][data-state="open"]',
     ),

@@ -35,6 +35,8 @@ export function CommentComposer({
 }: CommentComposerProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const anchorRef = useRef<HTMLDivElement>(null);
+  const mentionStartRef = useRef<number | null>(null);
+  const mentionCaretRef = useRef(0);
   const [text, setText] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [mentionStart, setMentionStart] = useState<number | null>(null);
@@ -48,11 +50,14 @@ export function CommentComposer({
   const syncMentionState = useCallback((value: string, caret: number) => {
     const active = getMentionQuery(value, caret);
     if (!active) {
+      mentionStartRef.current = null;
       setMentionStart(null);
       setMentionQuery("");
       setActiveIndex(0);
       return;
     }
+    mentionStartRef.current = active.start;
+    mentionCaretRef.current = caret;
     setMentionStart(active.start);
     setMentionQuery(active.query);
     setActiveIndex(0);
@@ -68,11 +73,21 @@ export function CommentComposer({
     syncMentionState(value, caret);
   }
 
+  function dismissMention() {
+    mentionStartRef.current = null;
+    setMentionStart(null);
+    setMentionQuery("");
+    setActiveIndex(0);
+  }
+
   function applyMention(member: TaskOrgMember) {
-    if (mentionStart === null || !textareaRef.current) return;
-    const caret = textareaRef.current.selectionStart;
-    const result = insertMention(text, mentionStart, caret, member.full_name);
+    const start = mentionStartRef.current;
+    if (start === null) return;
+    const caret = mentionCaretRef.current;
+    const currentText = textareaRef.current?.value ?? text;
+    const result = insertMention(currentText, start, caret, member.full_name);
     setText(result.text);
+    mentionStartRef.current = null;
     setMentionStart(null);
     setMentionQuery("");
     setActiveIndex(0);
@@ -155,6 +170,7 @@ export function CommentComposer({
               query={mentionQuery}
               activeIndex={activeIndex}
               onSelect={applyMention}
+              onDismiss={dismissMention}
             />
             <textarea
               ref={textareaRef}
@@ -172,7 +188,10 @@ export function CommentComposer({
             <div className="flex items-center gap-0.5">
               <button
                 type="button"
-                onClick={insertMentionTrigger}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  insertMentionTrigger();
+                }}
                 className="grid size-8 place-items-center rounded-lg text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
                 aria-label="Mention someone"
               >
@@ -228,6 +247,7 @@ export function CommentComposer({
               query={mentionQuery}
               activeIndex={activeIndex}
               onSelect={applyMention}
+              onDismiss={dismissMention}
             />
             <textarea
               ref={textareaRef}
@@ -257,7 +277,10 @@ export function CommentComposer({
           )}>
             <button
               type="button"
-              onClick={insertMentionTrigger}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                insertMentionTrigger();
+              }}
               className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
               aria-label="Mention someone"
             >
@@ -290,6 +313,7 @@ export function CommentComposer({
           query={mentionQuery}
           activeIndex={activeIndex}
           onSelect={applyMention}
+          onDismiss={dismissMention}
         />
 
         <textarea

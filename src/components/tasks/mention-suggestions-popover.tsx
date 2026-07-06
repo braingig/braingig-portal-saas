@@ -1,9 +1,29 @@
-import { useLayoutEffect, useState } from "react";
+import { useLayoutEffect, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { ProfileAvatar } from "@/components/ui/profile-avatar";
 import { filterMentionMembers } from "@/lib/tasks/comment-mentions";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
+
+export const MENTION_SUGGESTIONS_SELECTOR = "[data-mention-suggestions]";
+
+function isInsideMentionSuggestions(target: EventTarget | null) {
+  if (!(target instanceof Node)) return false;
+  const element = target instanceof Element ? target : target.parentElement;
+  return Boolean(element?.closest(MENTION_SUGGESTIONS_SELECTOR));
+}
+
+function isInsideAnchor(anchor: HTMLElement | null, target: EventTarget | null) {
+  if (!anchor || !(target instanceof Node)) return false;
+  return anchor.contains(target);
+}
+
+function resolvePortalContainer(anchor: HTMLElement | null): HTMLElement {
+  if (typeof document === "undefined") return document.body;
+  const dialog = anchor?.closest('[role="dialog"]');
+  if (dialog instanceof HTMLElement) return dialog;
+  return document.body;
+}
 
 type PopoverPosition = {
   left: number;
@@ -11,6 +31,7 @@ type PopoverPosition = {
   top: number;
   transform?: string;
   maxHeight: number;
+  strategy: "fixed" | "absolute";
 };
 
 type MentionSuggestionsPopoverProps = {
@@ -20,33 +41,71 @@ type MentionSuggestionsPopoverProps = {
   query: string;
   activeIndex: number;
   onSelect: (member: TaskOrgMember) => void;
+  onDismiss?: () => void;
 };
 
 function computePosition(anchor: HTMLElement): PopoverPosition {
-  const rect = anchor.getBoundingClientRect();
-  const width = Math.min(384, Math.max(rect.width, 240));
-  const left = Math.min(Math.max(8, rect.left), window.innerWidth - width - 8);
+  const portal = resolvePortalContainer(anchor);
+  const useAbsolute = portal !== document.body;
+  const anchorRect = anchor.getBoundingClientRect();
+  const width = Math.min(384, Math.max(anchorRect.width, 240));
   const gap = 8;
   const estimatedHeight = 220;
-  const spaceAbove = rect.top;
-  const spaceBelow = window.innerHeight - rect.bottom;
+
+  if (useAbsolute) {
+    const portalRect = portal.getBoundingClientRect();
+    const left = Math.min(
+      Math.max(8, anchorRect.left - portalRect.left),
+      portalRect.width - width - 8,
+    );
+    const anchorTop = anchorRect.top - portalRect.top;
+    const anchorBottom = anchorRect.bottom - portalRect.top;
+    const spaceAbove = anchorTop;
+    const spaceBelow = portalRect.height - anchorBottom;
+    const preferAbove = spaceAbove >= estimatedHeight || spaceAbove > spaceBelow;
+
+    if (preferAbove) {
+      return {
+        left,
+        width,
+        top: anchorTop - gap,
+        transform: "translateY(-100%)",
+        maxHeight: Math.max(120, spaceAbove - gap - 16),
+        strategy: "absolute",
+      };
+    }
+
+    return {
+      left,
+      width,
+      top: anchorBottom + gap,
+      maxHeight: Math.max(120, spaceBelow - gap - 16),
+      strategy: "absolute",
+    };
+  }
+
+  const left = Math.min(Math.max(8, anchorRect.left), window.innerWidth - width - 8);
+  const spaceAbove = anchorRect.top;
+  const spaceBelow = window.innerHeight - anchorRect.bottom;
   const preferAbove = spaceAbove >= estimatedHeight || spaceAbove > spaceBelow;
 
   if (preferAbove) {
     return {
       left,
       width,
-      top: rect.top - gap,
+      top: anchorRect.top - gap,
       transform: "translateY(-100%)",
       maxHeight: Math.max(120, spaceAbove - gap - 16),
+      strategy: "fixed",
     };
   }
 
   return {
     left,
     width,
-    top: rect.bottom + gap,
+    top: anchorRect.bottom + gap,
     maxHeight: Math.max(120, spaceBelow - gap - 16),
+    strategy: "fixed",
   };
 }
 
@@ -57,18 +116,22 @@ export function MentionSuggestionsPopover({
   query,
   activeIndex,
   onSelect,
+  onDismiss,
 }: MentionSuggestionsPopoverProps) {
   const [position, setPosition] = useState<PopoverPosition | null>(null);
+  const [portalContainer, setPortalContainer] = useState<HTMLElement | null>(null);
   const suggestions = open ? filterMentionMembers(members, query) : [];
 
   useLayoutEffect(() => {
     if (!open || !anchorRef.current) {
       setPosition(null);
+      setPortalContainer(null);
       return;
     }
 
     function update() {
       if (!anchorRef.current) return;
+      setPortalContainer(resolvePortalContainer(anchorRef.current));
       setPosition(computePosition(anchorRef.current));
     }
 
@@ -81,16 +144,32 @@ export function MentionSuggestionsPopover({
     };
   }, [open, anchorRef, query, suggestions.length]);
 
-  if (!open || suggestions.length === 0 || !position || typeof document === "undefined") {
+  useEffect(() => {
+    if (!open || !onDismiss) return;
+
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (isInsideAnchor(anchorRef.current, target)) return;
+      if (isInsideMentionSuggestions(target)) return;
+      onDismiss();
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open, anchorRef, onDismiss]);
+
+  if (!open || suggestions.length === 0 || !position || !portalContainer || typeof document === "undefined") {
     return null;
   }
 
-  return createPortal(
+  const panel = (
     <div
+      data-mention-suggestions
       role="listbox"
       aria-label="Mention someone"
       className={cn(
-        "fixed z-[200] overflow-hidden rounded-lg border border-border bg-popover shadow-xl",
+        position.strategy === "fixed" ? "fixed" : "absolute",
+        "z-[300] pointer-events-auto overflow-hidden rounded-lg border border-border bg-popover shadow-xl",
         "animate-in fade-in-0 zoom-in-95 duration-200",
       )}
       style={{
@@ -113,10 +192,15 @@ export function MentionSuggestionsPopover({
               aria-selected={index === activeIndex}
               onMouseDown={(e) => {
                 e.preventDefault();
+                e.stopPropagation();
+              }}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 onSelect(member);
               }}
               className={cn(
-                "flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
+                "flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-left text-sm transition-colors hover:bg-accent",
                 index === activeIndex && "bg-accent",
               )}
             >
@@ -137,7 +221,12 @@ export function MentionSuggestionsPopover({
           </li>
         ))}
       </ul>
-    </div>,
-    document.body,
+    </div>
   );
+
+  if (portalContainer === document.body) {
+    return createPortal(panel, portalContainer);
+  }
+
+  return createPortal(panel, portalContainer);
 }
