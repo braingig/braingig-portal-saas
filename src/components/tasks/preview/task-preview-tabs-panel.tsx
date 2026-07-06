@@ -71,6 +71,7 @@ type TaskPreviewTabsPanelProps = {
   attachmentCount: number;
   onSaveDescription: (value: string, previous: string) => void | Promise<void>;
   onSaveNote: (value: string, previous: string) => void | Promise<void>;
+  onDeleteAttachment?: (attachmentId: string, fileName: string) => Promise<boolean>;
   activeTab?: string;
   onTabChange?: (tab: string) => void;
   subtaskCreateTrigger?: number;
@@ -219,6 +220,7 @@ export function TaskPreviewTabsPanel({
   attachmentCount,
   onSaveDescription,
   onSaveNote,
+  onDeleteAttachment,
   activeTab,
   onTabChange,
   subtaskCreateTrigger = 0,
@@ -342,6 +344,7 @@ export function TaskPreviewTabsPanel({
             onSaveDescription={onSaveDescription}
             onSaveNote={onSaveNote}
             onAttachmentsUploaded={onReload}
+            onDeleteAttachment={onDeleteAttachment}
           />
         </TabsPrimitive.Content>
 

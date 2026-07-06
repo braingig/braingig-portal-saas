@@ -13,9 +13,10 @@ import {
   updateTaskChecklistItem,
   type TaskChecklistItem,
 } from "@/lib/tasks/checklist";
-import { logTaskAssigneeChange, logTaskFieldChange } from "@/lib/tasks/task-audit";
-import { listTaskAttachments, uploadTaskFiles } from "@/lib/tasks/attachments";
+import { logTaskAssigneeChange, logTaskCommentDeleted, logTaskFieldChange, logTaskAttachmentDeleted } from "@/lib/tasks/task-audit";
+import { deleteTaskAttachmentsByIds, listTaskAttachments, uploadTaskFiles } from "@/lib/tasks/attachments";
 import { deleteTaskRecord } from "@/lib/tasks/delete-task";
+import { fetchTaskAudits } from "@/lib/tasks/fetch-task-audits";
 import {
   buildCommentTree,
   countRootComments,
@@ -26,6 +27,7 @@ import {
   type TaskCommentNode,
 } from "@/lib/tasks/comments";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
+import type { CommentAttachment } from "@/lib/tasks/comment-attachments";
 import { fetchMentionableMembers, fetchProfilesByIds } from "@/lib/tasks/org-members";
 import { fetchSubtaskListItems } from "@/lib/tasks/subtasks";
 import {
@@ -417,6 +419,7 @@ export function useTaskPreviewData(
       });
       await refreshComments();
       notifyParent();
+      toast.success(parentId ? "Reply posted" : "Comment posted");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to post comment");
       throw err;
@@ -444,17 +447,19 @@ export function useTaskPreviewData(
   }, [user, task, orgId, profiles, mentionMembers, refreshComments]);
 
   const removeComment = useCallback(async (commentId: string) => {
-    if (!orgId) return;
+    if (!orgId || !task) return;
     try {
       await deleteTaskComment(commentId, orgId);
+      await logTaskCommentDeleted(task.id);
       await refreshComments();
+      await refreshAudits();
       await loadData({ silent: true });
       notifyParent();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete comment");
       throw err;
     }
-  }, [orgId, notifyParent, refreshComments, loadData]);
+  }, [orgId, task, notifyParent, refreshComments, refreshAudits, loadData]);
 
   const syncAssignees = useCallback(async (ids: string[]) => {
     if (!task) return;
@@ -480,15 +485,33 @@ export function useTaskPreviewData(
       if (e2) { toast.error(e2.message); return; }
     }
 
+    let nextProfiles = profiles;
+    if (orgId) {
+      const missingIds = ids.filter((id) => !profiles.some((p) => p.id === id));
+      if (missingIds.length > 0) {
+        const [fetched, emailMap] = await Promise.all([
+          fetchProfilesByIds(missingIds, orgId),
+          fetchProfileEmails(orgId, missingIds),
+        ]);
+        const enriched = fetched.map((p) => ({
+          ...p,
+          email: emailMap.get(p.id) ?? p.email ?? null,
+        }));
+        const existingIds = new Set(profiles.map((p) => p.id));
+        nextProfiles = [...profiles, ...enriched.filter((p) => !existingIds.has(p.id))];
+        setProfiles(nextProfiles);
+      }
+    }
+
     const assigneeNames = ids.map(
-      (id) => profiles.find((p) => p.id === id)?.full_name ?? "Someone",
+      (id) => nextProfiles.find((p) => p.id === id)?.full_name ?? "Someone",
     );
     await logTaskAssigneeChange(task.id, ids, assigneeNames);
 
-    setAssignees(profiles.filter((p) => ids.includes(p.id)));
+    setAssignees(nextProfiles.filter((p) => ids.includes(p.id)));
     await refreshAudits();
     notifyParent();
-  }, [task, assigneeIds, profiles, notifyParent, refreshAudits]);
+  }, [task, assigneeIds, profiles, orgId, notifyParent, refreshAudits]);
 
   const toggleTimer = useCallback(async () => {
     if (!user || !task || !orgId) return;
@@ -675,6 +698,34 @@ export function useTaskPreviewData(
     return uploaded;
   }, [user, task, orgId, notifyParent]);
 
+  const uploadCommentAttachments = useCallback(async (files: File[]): Promise<CommentAttachment[]> => {
+    if (!user || !task || !orgId || files.length === 0) return [];
+    const uploaded = await uploadTaskFiles(orgId, user.id, task.id, files);
+    if (!uploaded.length) {
+      toast.error("No files were uploaded");
+      throw new Error("Upload failed");
+    }
+    setAttachmentCount((count) => count + uploaded.length);
+    notifyParent();
+    return uploaded.map(({ id, name, url }) => ({ id, name, url }));
+  }, [user, task, orgId, notifyParent]);
+
+  const removeTaskAttachment = useCallback(async (attachmentId: string, fileName: string) => {
+    if (!task || !orgId) return false;
+    try {
+      await deleteTaskAttachmentsByIds(orgId, [attachmentId]);
+      await logTaskAttachmentDeleted(task.id, fileName);
+      setAttachmentCount((count) => Math.max(0, count - 1));
+      await refreshAudits();
+      notifyParent();
+      toast.success("Attachment removed");
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove attachment");
+      return false;
+    }
+  }, [task, orgId, refreshAudits, notifyParent]);
+
   return {
     user,
     orgId,
@@ -714,5 +765,7 @@ export function useTaskPreviewData(
     removeChecklistItem,
     assignChecklistItem,
     uploadTaskAttachments,
+    uploadCommentAttachments,
+    removeTaskAttachment,
   };
 }

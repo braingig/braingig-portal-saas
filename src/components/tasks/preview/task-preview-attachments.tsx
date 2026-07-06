@@ -1,5 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { Download, FileText, Loader2, Plus } from "lucide-react";
+import { Download, FileText, Loader2, Plus, X } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { getAttachmentPublicUrl } from "@/lib/projects/attachments";
 import {
   listTaskAttachments,
@@ -17,6 +27,7 @@ type TaskPreviewAttachmentsProps = {
   fileInputRef?: React.RefObject<HTMLInputElement | null>;
   compact?: boolean;
   onUploaded?: () => void;
+  onDeleteAttachment?: (attachmentId: string, fileName: string) => Promise<boolean>;
 };
 
 export function TaskPreviewAttachments({
@@ -27,12 +38,15 @@ export function TaskPreviewAttachments({
   fileInputRef: externalInputRef,
   compact = false,
   onUploaded,
+  onDeleteAttachment,
 }: TaskPreviewAttachmentsProps) {
   const internalInputRef = useRef<HTMLInputElement>(null);
   const inputRef = externalInputRef ?? internalInputRef;
   const [attachments, setAttachments] = useState<TaskAttachment[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<TaskAttachment | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const hasLoadedRef = useRef(false);
 
   useEffect(() => {
@@ -77,6 +91,20 @@ export function TaskPreviewAttachments({
     } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
+    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete || !onDeleteAttachment) return;
+    setDeleting(true);
+    try {
+      const ok = await onDeleteAttachment(pendingDelete.id, pendingDelete.name);
+      if (ok) {
+        setAttachments((current) => current.filter((row) => row.id !== pendingDelete.id));
+        setPendingDelete(null);
+      }
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -138,20 +166,34 @@ export function TaskPreviewAttachments({
           {attachments.map((attachment) => {
             const url = attachment.url || getAttachmentPublicUrl(attachment.storage_path);
             return (
-              <a
+              <div
                 key={attachment.id}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                title={attachment.name}
                 className={cn(
-                  "inline-flex max-w-[8.5rem] items-center gap-1.5 rounded-md border border-border/60 bg-surface/30 px-2 py-1 transition-colors",
+                  "group relative inline-flex max-w-[8.5rem] items-center gap-1.5 rounded-md border border-border/60 bg-surface/30 px-2 py-1 transition-colors",
                   "hover:border-border hover:bg-surface/60",
                 )}
               >
-                <FileText className="size-3 shrink-0 text-muted-foreground" />
-                <span className="truncate text-[11px] text-foreground">{attachment.name}</span>
-              </a>
+                <a
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={attachment.name}
+                  className="inline-flex min-w-0 flex-1 items-center gap-1.5"
+                >
+                  <FileText className="size-3 shrink-0 text-muted-foreground" />
+                  <span className="truncate text-[11px] text-foreground">{attachment.name}</span>
+                </a>
+                {onDeleteAttachment && (
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete(attachment)}
+                    className="grid size-4 shrink-0 place-items-center rounded text-muted-foreground opacity-0 transition-opacity hover:text-danger group-hover:opacity-100"
+                    aria-label={`Remove ${attachment.name}`}
+                  >
+                    <X className="size-3" />
+                  </button>
+                )}
+              </div>
             );
           })}
 
@@ -170,6 +212,29 @@ export function TaskPreviewAttachments({
           </button>
         </div>
       )}
+
+      <AlertDialog open={Boolean(pendingDelete)} onOpenChange={(open) => !open && setPendingDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove attachment?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDelete
+                ? `"${pendingDelete.name}" will be permanently removed from this task.`
+                : "This file will be permanently removed from this task."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

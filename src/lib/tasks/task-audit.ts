@@ -31,6 +31,32 @@ export function formatTaskAuditMessage(
     return { text: `${actor} created this task` };
   }
 
+  if (row.action === "task.deleted") {
+    const title = meta.title ? String(meta.title) : "this task";
+    const descendants = Number(meta.descendantCount ?? 0);
+    if (descendants > 0) {
+      return {
+        text: `${actor} deleted this task`,
+        detail: `Including ${descendants} subtask${descendants === 1 ? "" : "s"}`,
+      };
+    }
+    return { text: `${actor} deleted ${title}` };
+  }
+
+  if (row.action === "task.subtask.deleted") {
+    const title = meta.subtaskTitle ? String(meta.subtaskTitle) : "a subtask";
+    return { text: `${actor} deleted subtask`, detail: title };
+  }
+
+  if (row.action === "task.attachment.deleted") {
+    const name = meta.fileName ? String(meta.fileName) : "a file";
+    return { text: `${actor} removed attachment`, detail: name };
+  }
+
+  if (row.action === "task.comment.deleted") {
+    return { text: `${actor} deleted a comment` };
+  }
+
   if (row.action === "task.assigned_via_timer") {
     const assigneeName = meta.assigneeName ? String(meta.assigneeName) : nameOf(meta.assigneeId as string);
     return { text: `${assigneeName} was assigned by starting the timer` };
@@ -122,4 +148,12 @@ export async function logTaskAssigneeChange(
     assigneeIds,
     assigneeNames,
   });
+}
+
+export async function logTaskAttachmentDeleted(taskId: string, fileName: string) {
+  await logAudit("task.attachment.deleted", "task", taskId, { fileName });
+}
+
+export async function logTaskCommentDeleted(taskId: string) {
+  await logAudit("task.comment.deleted", "task", taskId, {});
 }

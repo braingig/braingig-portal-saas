@@ -65,6 +65,14 @@ export type DeleteTaskResult = {
 
 /** Deletes a task and its subtree, including attachments and related rows. */
 export async function deleteTaskRecord(orgId: string, taskId: string): Promise<DeleteTaskResult> {
+  const { data: taskRow, error: fetchError } = await supabase
+    .from("tasks")
+    .select("id, title, parent_id")
+    .eq("id", taskId)
+    .maybeSingle();
+
+  if (fetchError) throw new Error(fetchError.message);
+
   const taskIds = await collectTaskSubtreeIds(taskId);
 
   await deleteAttachmentsForTasks(orgId, taskIds);
@@ -74,8 +82,16 @@ export async function deleteTaskRecord(orgId: string, taskId: string): Promise<D
   if (error) throw new Error(error.message);
 
   await logAudit("task.deleted", "task", taskId, {
+    title: taskRow?.title ?? null,
     descendantCount: Math.max(0, taskIds.length - 1),
   });
+
+  if (taskRow?.parent_id) {
+    await logAudit("task.subtask.deleted", "task", taskRow.parent_id, {
+      subtaskTitle: taskRow.title,
+      subtaskId: taskId,
+    });
+  }
 
   return { deletedIds: taskIds };
 }

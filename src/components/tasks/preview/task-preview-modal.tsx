@@ -12,6 +12,16 @@ import {
 } from "lucide-react";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
@@ -61,6 +71,8 @@ export function TaskPreviewModal({
   const [activeTab, setActiveTab] = useState("details");
   const [subtaskCreateTrigger, setSubtaskCreateTrigger] = useState(0);
   const [parentTask, setParentTask] = useState<Pick<TaskDetailRecord, "id" | "title"> | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const data = useTaskPreviewData(taskId, open, onUpdated);
 
@@ -91,20 +103,35 @@ export function TaskPreviewModal({
     await data.patchTask({ title: trimmed });
   }
 
-  async function handleDelete() {
+  function requestDelete() {
     if (!data.task || !data.user) return;
     if (!canDeleteTask(data.task, data.user.id, hasAny)) {
       toast.error("You do not have permission to delete this task");
       return;
     }
-    const message = taskDeleteConfirmMessage({
+    setDeleteDialogOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!data.task) return;
+    setDeleting(true);
+    try {
+      const ok = await data.deleteTask();
+      if (ok) {
+        setDeleteDialogOpen(false);
+        onOpenChange(false);
+      }
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const deleteConfirmMessage = data.task
+    ? taskDeleteConfirmMessage({
       isSubtask: Boolean(data.task.parent_id),
       subtaskCount: data.subtasks.length,
-    });
-    if (!confirm(message)) return;
-    const ok = await data.deleteTask();
-    if (ok) onOpenChange(false);
-  }
+    })
+    : "";
 
   const assigneeIds = useMemo(() => data.assignees.map((a) => a.id), [data.assignees]);
 
@@ -231,7 +258,7 @@ export function TaskPreviewModal({
                           <Pencil className="size-4" /> Edit task
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => void handleDelete()} className="text-danger">
+                        <DropdownMenuItem onClick={requestDelete} className="text-danger">
                           <Trash2 className="size-4" /> Delete
                         </DropdownMenuItem>
                       </DropdownMenuContent>
@@ -300,10 +327,11 @@ export function TaskPreviewModal({
                         onCommentSubmit={data.postComment}
                         onCommentUpdate={data.updateComment}
                         onCommentDelete={data.removeComment}
-                        onUploadCommentAttachments={data.uploadTaskAttachments}
+                        onUploadCommentAttachments={data.uploadCommentAttachments}
                         attachmentCount={data.attachmentCount}
                         onSaveDescription={data.saveDescription}
                         onSaveNote={data.saveNote}
+                        onDeleteAttachment={data.removeTaskAttachment}
                       />
                   </div>
                 </div>
@@ -334,6 +362,27 @@ export function TaskPreviewModal({
         activeUsers={activeNowUsers}
         currentUserId={data.user?.id}
       />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {data.task?.parent_id ? "Delete subtask?" : "Delete task?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>{deleteConfirmMessage}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => { e.preventDefault(); void confirmDelete(); }}
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

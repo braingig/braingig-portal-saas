@@ -13,6 +13,7 @@ type TaskPreviewDetailsTabProps = {
   onSaveDescription: (value: string, previous: string) => void | Promise<void>;
   onSaveNote: (value: string, previous: string) => void | Promise<void>;
   onAttachmentsUploaded: () => void;
+  onDeleteAttachment?: (attachmentId: string, fileName: string) => Promise<boolean>;
 };
 
 export function TaskPreviewDetailsTab({
@@ -24,6 +25,7 @@ export function TaskPreviewDetailsTab({
   onSaveDescription,
   onSaveNote,
   onAttachmentsUploaded,
+  onDeleteAttachment,
 }: TaskPreviewDetailsTabProps) {
   const attachmentInputRef = useRef<HTMLInputElement>(null);
 
@@ -85,6 +87,7 @@ export function TaskPreviewDetailsTab({
           fileInputRef={attachmentInputRef}
           compact
           onUploaded={onAttachmentsUploaded}
+          onDeleteAttachment={onDeleteAttachment}
         />
       </section>
     </div>
