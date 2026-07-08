@@ -1,39 +1,70 @@
 import type { ReactNode } from "react";
-import { Calendar, CheckSquare, DollarSign, Pencil, User, Users } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { DetailCard } from "@/components/projects/details/detail-card";
+import { ExpandableDetailText } from "@/components/projects/details/expandable-detail-text";
 import { TaskActivityFeed } from "@/components/tasks/details/task-activity-feed";
-import type { TaskPreviewAudit } from "@/components/tasks/preview/use-task-preview-data";
-import { formatCurrency, formatDate, formatProjectTimeline, stripHtml } from "@/lib/format";
+import { formatCurrency, formatDate, formatProjectTimeline } from "@/lib/format";
+import {
+  formatProjectActivityMessage,
+  type ProjectActivityAudit,
+} from "@/lib/projects/project-activity";
 import { countDoneTasks, countOpenTasks } from "@/lib/projects/task-status";
-import type { ProjectOwner, ProjectRecord, ProjectTask } from "@/lib/projects/types";
+import type { ProjectRecord, ProjectTask } from "@/lib/projects/types";
+import {
+  projectMeta,
+  projectMuted,
+  projectSecondary,
+  projectTaskTitle,
+} from "@/components/projects/details/project-details-styles";
+import { cn } from "@/lib/utils";
 
 type ProjectDetailsSidebarProps = {
   project: ProjectRecord;
-  owner: ProjectOwner | null;
   tasks: ProjectTask[];
-  audits: TaskPreviewAudit[];
+  audits: ProjectActivityAudit[];
+  taskTitles: Map<string, string>;
   nameOf: (id: string | null | undefined) => string;
   onEditNote?: () => void;
   noteSlot?: ReactNode;
 };
 
-function DetailRow({
-  icon: Icon,
-  label,
-  value,
-}: {
-  icon: typeof DollarSign;
-  label: string;
-  value: ReactNode;
-}) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="flex gap-3">
-      <div className="mt-0.5 grid size-8 shrink-0 place-items-center rounded-lg bg-surface-2 text-muted-foreground">
-        <Icon className="size-4" />
+    <div className="flex items-baseline justify-between gap-4 py-2.5">
+      <dt className={cn("shrink-0", projectSecondary)}>{label}</dt>
+      <dd className={cn("min-w-0 text-right font-medium", projectTaskTitle)}>{value}</dd>
+    </div>
+  );
+}
+
+function TaskStats({ tasks }: { tasks: ProjectTask[] }) {
+  const doneCount = countDoneTasks(tasks);
+  const openCount = countOpenTasks(tasks);
+  const total = tasks.length;
+  const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-base font-semibold tracking-tight text-foreground tabular-nums">
+            {percent}%
+          </p>
+          <p className={cn("mt-0.5", projectMeta)}>complete</p>
+        </div>
+        <p className={cn("text-right", projectMeta)}>
+          <span className="font-medium text-foreground">{doneCount}</span> done
+          <span className="mx-1.5 text-border">·</span>
+          <span className="font-medium text-foreground">{openCount}</span> open
+          <span className="mx-1.5 text-border">·</span>
+          <span className="font-medium text-foreground">{total}</span> total
+        </p>
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{label}</p>
-        <div className="mt-0.5 text-sm font-medium text-foreground">{value}</div>
+      <div className="h-1 overflow-hidden rounded-full bg-muted/60">
+        <div
+          className="h-full rounded-full bg-brand transition-all duration-300"
+          style={{ width: `${percent}%` }}
+        />
       </div>
     </div>
   );
@@ -41,50 +72,29 @@ function DetailRow({
 
 export function ProjectDetailsSidebar({
   project,
-  owner,
   tasks,
   audits,
+  taskTitles,
   nameOf,
   onEditNote,
   noteSlot,
 }: ProjectDetailsSidebarProps) {
-  const notePlain = stripHtml(project.note);
-  const hasNoteHtml = project.note && project.note !== notePlain;
-  const doneCount = countDoneTasks(tasks);
-  const openCount = countOpenTasks(tasks);
-
   return (
-    <div className="space-y-4">
-      <DetailCard title="Details">
-        <div className="space-y-4">
+    <div className="space-y-5">
+      <DetailCard title="Overview">
+        <TaskStats tasks={tasks} />
+        <dl className="mt-2 divide-y divide-border/30">
+          <DetailRow label="Budget" value={formatCurrency(project.budget)} />
+          <DetailRow label="Client" value={project.client || "—"} />
           <DetailRow
-            icon={CheckSquare}
-            label="Tasks"
-            value={
-              <span>
-                {doneCount} done · {openCount} open · {tasks.length} total
-              </span>
-            }
-          />
-          <DetailRow icon={DollarSign} label="Budget" value={formatCurrency(project.budget)} />
-          <DetailRow icon={Users} label="Client" value={project.client || "Not set"} />
-          <DetailRow
-            icon={Calendar}
             label="Timeline"
             value={formatProjectTimeline(project.start_date, project.end_date, project.due_date)}
           />
-          <DetailRow
-            icon={User}
-            label="Created by"
-            value={owner?.full_name ?? "Unknown"}
-          />
-        </div>
+        </dl>
         {project.created_at && (
-          <p className="mt-5 border-t border-border pt-4 text-xs text-muted-foreground">
+          <p className={projectMeta}>
             Created {formatDate(project.created_at)}
-            {project.updated_at && (
-              <> · Updated {formatDate(project.updated_at)}</>
-            )}
+            {project.updated_at && <> · Updated {formatDate(project.updated_at)}</>}
           </p>
         )}
       </DetailCard>
@@ -95,9 +105,12 @@ export function ProjectDetailsSidebar({
           comments={[]}
           audits={audits}
           nameOf={nameOf}
+          formatAuditMessage={(row, resolveName) =>
+            formatProjectActivityMessage(row as ProjectActivityAudit, resolveName, taskTitles)
+          }
           sortDescending
           showHeader={false}
-          previewCount={8}
+          previewCount={5}
         />
       </DetailCard>
 
@@ -109,7 +122,7 @@ export function ProjectDetailsSidebar({
               <button
                 type="button"
                 onClick={onEditNote}
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                 aria-label="Edit note"
               >
                 <Pencil className="size-3.5" />
@@ -127,7 +140,7 @@ export function ProjectDetailsSidebar({
               <button
                 type="button"
                 onClick={onEditNote}
-                className="text-muted-foreground transition-colors hover:text-foreground"
+                className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
                 aria-label="Edit note"
               >
                 <Pencil className="size-3.5" />
@@ -135,16 +148,10 @@ export function ProjectDetailsSidebar({
             ) : undefined
           }
         >
-          {!notePlain && !hasNoteHtml ? (
-            <p className="text-sm text-muted-foreground">No notes yet.</p>
-          ) : hasNoteHtml ? (
-            <div
-              className="text-sm leading-relaxed text-foreground [&_a]:text-brand [&_a]:underline [&_a]:underline-offset-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_ul]:list-disc [&_ul]:pl-5"
-              dangerouslySetInnerHTML={{ __html: project.note! }}
-            />
-          ) : (
-            <p className="text-sm leading-relaxed text-foreground">{notePlain}</p>
-          )}
+          <ExpandableDetailText
+            html={project.note}
+            emptyMessage="No notes yet."
+          />
         </DetailCard>
       )}
     </div>

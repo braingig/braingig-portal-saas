@@ -1,15 +1,25 @@
-import { useMemo, useState } from "react";
-import { ChevronDown, FolderKanban, FolderPlus, Layers, Plus } from "lucide-react";
+import { useMemo, useState, type ReactNode } from "react";
+import { ChevronDown, ChevronRight, FolderKanban, FolderPlus, Layers, Plus } from "lucide-react";
 import { CreateProjectFolderModal } from "@/components/projects/create-project-folder-modal";
+import type { ProjectSubtask } from "@/lib/projects/types";
 import { CollapsibleDetailCard } from "@/components/projects/details/collapsible-detail-card";
 import { DetailCard } from "@/components/projects/details/detail-card";
 import { TaskStatusBadge } from "@/components/projects/details/task-status-badge";
 import { CreateTaskModal } from "@/components/tasks/create-task-modal";
 import { TaskPreviewModal } from "@/components/tasks/preview/task-preview-modal";
+import { AnimatedCollapse } from "@/components/ui/animated-collapse";
 import { buildProjectFolders, tasksInFolder } from "@/lib/projects/folders";
 import { countDoneTasks, countOpenTasks } from "@/lib/projects/task-status";
 import type { ProjectMilestone, ProjectTask } from "@/lib/projects/types";
 import { cn } from "@/lib/utils";
+import {
+  projectCountBadge,
+  projectMeta,
+  projectMuted,
+  projectSectionTitle,
+  projectSubtaskTitle,
+  projectTaskTitle,
+} from "@/components/projects/details/project-details-styles";
 
 const FOLDER_PREVIEW_LIMIT = 4;
 const FOLDER_SCROLL_AFTER = 6;
@@ -19,6 +29,7 @@ type ProjectDetailsTasksProps = {
   orgId: string;
   userId: string;
   tasks: ProjectTask[];
+  subtasksByParent: Map<string, ProjectSubtask[]>;
   milestones: ProjectMilestone[];
   onChange: () => void;
 };
@@ -29,34 +40,97 @@ function TaskProgress({ tasks }: { tasks: ProjectTask[] }) {
   const percent = total > 0 ? Math.round((doneCount / total) * 100) : 0;
 
   return (
-    <div className="mb-4 space-y-2">
-      <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
-        <span>
-          <span className="font-medium text-foreground">{doneCount}</span>
-          {" "}of{" "}
-          <span className="font-medium text-foreground">{total}</span>
-          {" "}tasks complete ·{" "}
-          <span className="font-medium text-foreground">{countOpenTasks(tasks)}</span>
-          {" "}open
-        </span>
-        <span className="tabular-nums">{percent}%</span>
-      </div>
-      <div className="h-1.5 overflow-hidden rounded-full bg-surface-2">
+    <div className="mb-5 flex items-center gap-4">
+      <div className="h-1 min-w-0 flex-1 overflow-hidden rounded-full bg-muted/60">
         <div
           className="h-full rounded-full bg-brand transition-all duration-300"
           style={{ width: `${percent}%` }}
         />
       </div>
+      <span className={cn("shrink-0 tabular-nums", projectMeta)}>
+        {doneCount}/{total} done · {countOpenTasks(tasks)} open
+      </span>
     </div>
+  );
+}
+
+function TaskRow({
+  task,
+  subtasks,
+  onOpenTask,
+}: {
+  task: ProjectTask;
+  subtasks: ProjectSubtask[];
+  onOpenTask: (taskId: string) => void;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const hasSubtasks = subtasks.length > 0;
+
+  return (
+    <li>
+      <div className="flex items-center gap-1">
+        {hasSubtasks ? (
+          <button
+            type="button"
+            onClick={() => setExpanded((value) => !value)}
+            className="inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+            aria-expanded={expanded}
+            aria-label={expanded ? "Hide subtasks" : `Show ${subtasks.length} subtasks`}
+          >
+            <ChevronRight
+              className={cn(
+                "size-3.5 transition-transform duration-300 ease-in-out",
+                expanded && "rotate-90",
+              )}
+            />
+          </button>
+        ) : (
+          <span className="size-6 shrink-0" aria-hidden />
+        )}
+        <button
+          type="button"
+          onClick={() => onOpenTask(task.id)}
+          className="flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-muted/50"
+        >
+          <span className={cn("min-w-0 flex-1 truncate", projectTaskTitle)}>
+            {task.title}
+          </span>
+          <TaskStatusBadge status={task.status} />
+        </button>
+      </div>
+
+      {hasSubtasks && (
+        <AnimatedCollapse open={expanded} contentClassName="min-h-0">
+          <ul className="ml-7 space-y-0.5 border-l border-border/40 pl-2">
+            {subtasks.map((subtask) => (
+              <li key={subtask.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpenTask(subtask.id)}
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-muted/50"
+                >
+                  <span className={cn("min-w-0 flex-1 truncate", projectSubtaskTitle)}>
+                    {subtask.title}
+                  </span>
+                  <TaskStatusBadge status={subtask.status} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </AnimatedCollapse>
+      )}
+    </li>
   );
 }
 
 function FolderTaskList({
   folderTasks,
+  subtasksByParent,
   onAddTask,
   onOpenTask,
 }: {
   folderTasks: ProjectTask[];
+  subtasksByParent: Map<string, ProjectSubtask[]>;
   onAddTask: () => void;
   onOpenTask: (taskId: string) => void;
 }) {
@@ -70,12 +144,12 @@ function FolderTaskList({
 
   if (folderTasks.length === 0) {
     return (
-      <div className="px-4 py-6 text-center">
-        <p className="text-sm text-muted-foreground">No tasks in this folder yet.</p>
+      <div className="px-1 py-5 text-center">
+        <p className={projectMuted}>No tasks yet.</p>
         <button
           type="button"
           onClick={onAddTask}
-          className="mt-2 text-xs font-medium text-brand hover:text-brand/80"
+          className="mt-2 text-[11px] font-medium text-brand hover:text-brand/80"
         >
           Add a task
         </button>
@@ -91,25 +165,20 @@ function FolderTaskList({
           useScroll && "max-h-[min(40vh,320px)] overflow-y-auto overscroll-contain",
         )}
       >
-        <div className="divide-y divide-border/30">
+        <ul className="space-y-0.5">
           {visibleTasks.map((task) => (
-            <button
+            <TaskRow
               key={task.id}
-              type="button"
-              onClick={() => onOpenTask(task.id)}
-              className="flex w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-surface/50"
-            >
-              <span className="min-w-0 flex-1 truncate text-sm text-foreground">
-                {task.title}
-              </span>
-              <TaskStatusBadge status={task.status} />
-            </button>
+              task={task}
+              subtasks={subtasksByParent.get(task.id) ?? []}
+              onOpenTask={onOpenTask}
+            />
           ))}
-        </div>
+        </ul>
         {useScroll && (
           <div
             aria-hidden
-            className="pointer-events-none sticky bottom-0 h-6 bg-gradient-to-t from-background to-transparent"
+            className="pointer-events-none sticky bottom-0 h-6 bg-gradient-to-t from-card to-transparent"
           />
         )}
       </div>
@@ -118,14 +187,73 @@ function FolderTaskList({
         <button
           type="button"
           onClick={() => setShowAll((value) => !value)}
-          className="flex w-full items-center justify-center gap-1 border-t border-border/30 py-2 text-xs font-medium text-brand transition-colors hover:text-brand/80"
+          className="mt-1 flex w-full items-center justify-center gap-1 rounded-lg py-2 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/40 hover:text-foreground"
         >
           <ChevronDown className={cn("size-3.5 transition-transform", showAll && "rotate-180")} />
           {showAll
-            ? "Show fewer tasks"
-            : `Show all ${folderTasks.length} tasks (${hiddenCount} more)`}
+            ? "Show fewer"
+            : `Show ${hiddenCount} more`}
         </button>
       )}
+    </div>
+  );
+}
+
+function FolderGroup({
+  title,
+  icon: Icon,
+  count,
+  onAddTask,
+  children,
+  defaultOpen = false,
+}: {
+  title?: string;
+  icon?: typeof FolderKanban;
+  count: number;
+  onAddTask: () => void;
+  children: ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+
+  return (
+    <div className="rounded-lg border border-border/40">
+      <div className="flex items-center gap-1 px-2 py-2">
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+          aria-expanded={open}
+        >
+          <ChevronRight
+            className={cn(
+              "size-4 transition-transform duration-300 ease-in-out",
+              open && "rotate-90",
+            )}
+          />
+        </button>
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          {Icon && <Icon className="size-4 shrink-0 text-muted-foreground" />}
+          {title ? (
+            <h3 className={cn("truncate", projectSectionTitle)}>{title}</h3>
+          ) : (
+            <h3 className={projectSectionTitle}>Unfiled</h3>
+          )}
+          <span className={projectCountBadge}>{count}</span>
+        </div>
+        <button
+          type="button"
+          onClick={onAddTask}
+          className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
+        >
+          <Plus className="size-3.5" />
+          Add
+        </button>
+      </div>
+
+      <AnimatedCollapse open={open} contentClassName="min-h-0">
+        <div className="border-t border-border/30 px-2 pb-2 pt-1">{children}</div>
+      </AnimatedCollapse>
     </div>
   );
 }
@@ -135,6 +263,7 @@ export function ProjectDetailsTasks({
   orgId,
   userId,
   tasks,
+  subtasksByParent,
   milestones,
   onChange,
 }: ProjectDetailsTasksProps) {
@@ -156,7 +285,7 @@ export function ProjectDetailsTasks({
     <button
       type="button"
       onClick={() => setShowFolderModal(true)}
-      className="inline-flex items-center gap-1 rounded-lg border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground transition-colors hover:bg-surface"
+      className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
     >
       <FolderPlus className="size-3.5" />
       New folder
@@ -169,60 +298,43 @@ export function ProjectDetailsTasks({
 
       <div className="space-y-3">
         {unfiledTasks.length > 0 && (
-          <div className="overflow-hidden rounded-lg border border-border bg-surface/20">
-            <div className="flex items-center justify-end gap-2 border-b border-border/40 px-4 py-2">
-              <button
-                type="button"
-                onClick={() => openAddTask(null)}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand px-2 py-1 text-[10px] font-semibold text-brand-foreground hover:brightness-110"
-              >
-                <Plus className="size-3" />
-                Add task
-              </button>
-            </div>
+          <FolderGroup
+            count={unfiledTasks.length}
+            onAddTask={() => openAddTask(null)}
+          >
             <FolderTaskList
               folderTasks={unfiledTasks}
+              subtasksByParent={subtasksByParent}
               onAddTask={() => openAddTask(null)}
               onOpenTask={setPreviewTaskId}
             />
-          </div>
+          </FolderGroup>
         )}
 
         {milestoneFolders.map((folder) => {
           const folderTasks = tasksInFolder(tasks, folder.id);
 
           return (
-            <div key={folder.id} className="overflow-hidden rounded-lg border border-border bg-surface/20">
-              <div className="flex items-center justify-between gap-2 border-b border-border/40 px-4 py-2.5">
-                <div className="flex min-w-0 items-center gap-2">
-                  <FolderKanban className="size-4 shrink-0 text-brand" />
-                  <h3 className="truncate text-sm font-medium text-foreground">{folder.title}</h3>
-                  <span className="shrink-0 rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                    {folderTasks.length}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => openAddTask(folder.id)}
-                  className="inline-flex shrink-0 items-center gap-1 rounded-md bg-brand px-2 py-1 text-[10px] font-semibold text-brand-foreground hover:brightness-110"
-                >
-                  <Plus className="size-3" />
-                  Add task
-                </button>
-              </div>
-
+            <FolderGroup
+              key={folder.id}
+              title={folder.title}
+              icon={FolderKanban}
+              count={folderTasks.length}
+              onAddTask={() => openAddTask(folder.id)}
+            >
               <FolderTaskList
                 folderTasks={folderTasks}
+                subtasksByParent={subtasksByParent}
                 onAddTask={() => openAddTask(folder.id)}
                 onOpenTask={setPreviewTaskId}
               />
-            </div>
+            </FolderGroup>
           );
         })}
       </div>
 
       {!hasRealFolders && tasks.length === 0 && (
-        <p className="text-sm text-muted-foreground">
+        <p className={projectMuted}>
           Create folders to organize tasks, or add tasks directly to this project.
         </p>
       )}
@@ -232,15 +344,12 @@ export function ProjectDetailsTasks({
   return (
     <>
       {tasks.length === 0 ? (
-        <DetailCard
-          title="Folders & Tasks"
-          action={newFolderButton}
-        >
-          <p className="mb-4 text-sm text-muted-foreground">No tasks yet.</p>
+        <DetailCard title="Tasks" action={newFolderButton}>
+          <p className={cn("mb-4", projectMuted)}>No tasks yet.</p>
           <button
             type="button"
             onClick={() => openAddTask(null)}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3 py-1.5 text-xs font-semibold text-brand-foreground hover:brightness-110"
+            className="inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-medium text-brand-foreground hover:brightness-110"
           >
             <Plus className="size-3.5" />
             Add first task
@@ -248,16 +357,16 @@ export function ProjectDetailsTasks({
         </DetailCard>
       ) : (
         <CollapsibleDetailCard
-          title="Folders & Tasks"
+          title="Tasks"
           icon={Layers}
           count={tasks.length}
           hint={
             milestoneFolders.length > 0
-              ? `View ${tasks.length} task${tasks.length === 1 ? "" : "s"} across ${milestoneFolders.length} folder${milestoneFolders.length === 1 ? "" : "s"}`
-              : `${tasks.length} task${tasks.length === 1 ? "" : "s"} in this project`
+              ? `${tasks.length} tasks across ${milestoneFolders.length} folders`
+              : `${tasks.length} tasks in this project`
           }
           action={newFolderButton}
-          defaultOpen={tasks.length <= 3}
+          defaultOpen
         >
           {body}
         </CollapsibleDetailCard>

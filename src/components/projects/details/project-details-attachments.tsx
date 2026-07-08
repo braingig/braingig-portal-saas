@@ -8,6 +8,7 @@ import {
   type ProjectAttachment,
 } from "@/lib/projects/attachments";
 import type { ProjectRecord } from "@/lib/projects/types";
+import { projectMuted } from "@/components/projects/details/project-details-styles";
 import { toast } from "sonner";
 
 type ProjectDetailsAttachmentsProps = {
@@ -47,15 +48,15 @@ export function ProjectDetailsAttachments({ project, orgId }: ProjectDetailsAtta
   if (loading) {
     return (
       <DetailCard title="Attachments">
-        <p className="text-sm text-muted-foreground">Loading attachments…</p>
+        <p className={projectMuted}>Loading attachments…</p>
       </DetailCard>
     );
   }
 
   const grid = attachments.length === 0 ? (
-    <p className="text-sm text-muted-foreground">No files attached to this project.</p>
+    <p className={projectMuted}>No files attached to this project.</p>
   ) : (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
       {attachments.map((attachment) => (
         <FilePreview
           key={attachment.id}
@@ -64,6 +65,7 @@ export function ProjectDetailsAttachments({ project, orgId }: ProjectDetailsAtta
           downloadUrl={attachment.downloadUrl}
           mimeType={attachment.mime_type}
           sizeBytes={attachment.size_bytes || undefined}
+          size="dense"
         />
       ))}
     </div>
@@ -74,7 +76,7 @@ export function ProjectDetailsAttachments({ project, orgId }: ProjectDetailsAtta
       <CollapsibleDetailCard
         title="Attachments"
         icon={Paperclip}
-        hint="View attachments"
+        hint="No files attached"
         defaultOpen={false}
       >
         {grid}
@@ -87,7 +89,7 @@ export function ProjectDetailsAttachments({ project, orgId }: ProjectDetailsAtta
       title="Attachments"
       icon={Paperclip}
       count={attachments.length}
-      hint={`View ${attachments.length} attachment${attachments.length === 1 ? "" : "s"}`}
+      hint={`${attachments.length} file${attachments.length === 1 ? "" : "s"}`}
       defaultOpen={attachments.length <= 2}
     >
       {grid}

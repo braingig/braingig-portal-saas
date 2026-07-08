@@ -45,3 +45,5 @@ export type ProjectTask = {
   milestone_id?: string | null;
   profiles?: { full_name: string; avatar_url: string | null };
 };
+
+export type ProjectSubtask = Pick<ProjectTask, "id" | "title" | "status">;

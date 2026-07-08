@@ -1,5 +1,6 @@
 import { format, parseISO } from "date-fns";
 import { logAudit } from "@/lib/audit";
+import { getProjectStatusMeta } from "@/lib/projects/status";
 import { getTaskStatusMeta } from "@/lib/tasks/status";
 
 export type TaskAuditRow = {
@@ -28,6 +29,7 @@ export function formatTaskAuditMessage(
   const actor = nameOf(row.actor_id);
 
   if (row.action === "task.created") {
+    if (meta.title) return { text: `${actor} added task "${String(meta.title)}"` };
     return { text: `${actor} created this task` };
   }
 
@@ -96,7 +98,7 @@ export function formatTaskAuditMessage(
 
     if (field === "title") {
       const title = meta.value ? String(meta.value) : "untitled";
-      return { text: `${actor} renamed this task`, detail: title };
+      return { text: `${actor} renamed to ${title === "untitled" ? "untitled" : `"${title}"`}` };
     }
 
     if (field === "description") {
@@ -117,8 +119,25 @@ export function formatTaskAuditMessage(
     }
 
     if (meta.title && !field) {
-      return { text: `${actor} updated this task`, detail: String(meta.title) };
+      return { text: `${actor} updated "${String(meta.title)}"` };
     }
+  }
+
+  if (row.action === "project.updated") {
+    const field = meta.field as string | undefined;
+    if (field === "status" || meta.status) {
+      const status = String(field === "status" ? meta.value ?? meta.status : meta.status);
+      return { text: `${actor} set status to ${getProjectStatusMeta(status).label}` };
+    }
+    const attachments = Number(meta.attachmentCount ?? 0);
+    if (attachments > 0) {
+      return { text: `${actor} added ${attachments} file${attachments === 1 ? "" : "s"}` };
+    }
+    return { text: `${actor} updated project details` };
+  }
+
+  if (row.action === "project.created") {
+    return { text: `${actor} created this project` };
   }
 
   return { text: `${actor} updated this task` };

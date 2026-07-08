@@ -5,6 +5,7 @@ import type { TaskCommentRecord } from "@/lib/tasks/comments";
 import { formatTaskAuditMessage } from "@/lib/tasks/task-audit";
 import { formatDurationHuman } from "@/lib/task-timer";
 import type { TaskTimeEntry } from "@/lib/tasks/types";
+import { cn } from "@/lib/utils";
 
 export type TaskActivityItem = {
   id: string;
@@ -34,6 +35,10 @@ type TaskActivityFeedProps = {
   audits: AuditRow[];
   notifs?: NotifRow[];
   nameOf: (userId: string | null | undefined) => string;
+  formatAuditMessage?: (
+    row: AuditRow,
+    nameOf: (userId: string | null | undefined) => string,
+  ) => { text: string; detail?: string };
   previewCount?: number;
   sortDescending?: boolean;
   excludeComments?: boolean;
@@ -57,6 +62,7 @@ export function buildTaskActivityItems({
   audits,
   notifs = [],
   nameOf,
+  formatAuditMessage,
   sortDescending = false,
   excludeComments = false,
 }: Omit<TaskActivityFeedProps, "previewCount" | "className" | "showHeader">): TaskActivityItem[] {
@@ -88,7 +94,9 @@ export function buildTaskActivityItems({
   }
 
   for (const row of audits) {
-    const { text, detail } = formatTaskAuditMessage(row, nameOf);
+    const { text, detail } = formatAuditMessage
+      ? formatAuditMessage(row, nameOf)
+      : formatTaskAuditMessage(row, nameOf);
     items.push({ id: `audit-${row.id}`, at: row.created_at, text, detail });
   }
 
@@ -108,6 +116,7 @@ export function TaskActivityFeed({
   audits,
   notifs = [],
   nameOf,
+  formatAuditMessage,
   previewCount = DEFAULT_PREVIEW,
   sortDescending = false,
   excludeComments = false,
@@ -123,14 +132,16 @@ export function TaskActivityFeed({
       audits,
       notifs,
       nameOf,
+      formatAuditMessage,
       sortDescending,
       excludeComments,
     }),
-    [timeEntries, comments, audits, notifs, nameOf, sortDescending, excludeComments],
+    [timeEntries, comments, audits, notifs, nameOf, formatAuditMessage, sortDescending, excludeComments],
   );
 
   const visible = expanded ? activity : activity.slice(0, previewCount);
   const hiddenCount = activity.length - previewCount;
+  const listScrollable = expanded && activity.length > previewCount;
 
   if (activity.length === 0) {
     return (
@@ -152,7 +163,12 @@ export function TaskActivityFeed({
           Activity
         </h4>
       )}
-      <ul className="space-y-2.5">
+      <ul
+        className={cn(
+          "space-y-2.5",
+          listScrollable && "max-h-64 overflow-y-auto overscroll-contain pr-1",
+        )}
+      >
         {visible.map((item) => (
           <ActivityRow key={item.id} item={item} />
         ))}
@@ -163,16 +179,16 @@ export function TaskActivityFeed({
           onClick={() => setExpanded(true)}
           className="mt-2 text-xs font-medium text-brand transition-colors hover:text-brand/80"
         >
-          View full activity ({activity.length})
+          See more ({hiddenCount} more)
         </button>
       )}
       {expanded && hiddenCount > 0 && (
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="mt-2 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+          className="mt-2 text-xs font-medium text-brand transition-colors hover:text-brand/80"
         >
-          Show less
+          See less
         </button>
       )}
     </div>
