@@ -4,7 +4,6 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import {
   ChevronRight,
   ExternalLink,
-  MoreHorizontal,
   Pencil,
   Plus,
   Trash2,
@@ -21,13 +20,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { TaskDetailsActivePanel } from "@/components/tasks/details/task-details-active-panel";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
 import { TaskPreviewDetailsPanel } from "@/components/tasks/preview/task-preview-details-panel";
@@ -243,26 +235,12 @@ export function TaskPreviewModal({
                         />
                       </Link>
                     )}
-                    <DropdownMenu modal={false}>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type="button"
-                          className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground"
-                          aria-label="More options"
-                        >
-                          <MoreHorizontal className="size-4" />
-                        </button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end" onCloseAutoFocus={(e) => e.preventDefault()}>
-                        <DropdownMenuItem onClick={() => setShowEditModal(true)}>
-                          <Pencil className="size-4" /> Edit task
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={requestDelete} className="text-danger">
-                          <Trash2 className="size-4" /> Delete
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <TaskPreviewIconButton
+                      icon={Trash2}
+                      label={data.task.parent_id ? "Delete subtask" : "Delete task"}
+                      onClick={requestDelete}
+                      className="hover:bg-danger/10 hover:text-danger"
+                    />
                     <DialogPrimitive.Close className="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface hover:text-foreground">
                       <X className="size-4" />
                     </DialogPrimitive.Close>

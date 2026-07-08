@@ -1,18 +1,14 @@
-import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { FormField, FormSection } from "@/components/ui/form-field";
+import { Paperclip } from "lucide-react";
 import { ProjectAttachmentsField } from "@/components/projects/project-attachments-field";
+import { ProjectFormMeta } from "@/components/projects/project-form-meta";
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
-import { PROJECT_STATUSES, type ProjectFormValues, type ProjectStatus } from "@/lib/projects/constants";
+import {
+  previewFieldBlock,
+  previewModalTitle,
+  previewTitleField,
+} from "@/components/tasks/preview/task-preview-styles";
+import type { ProjectFormValues } from "@/lib/projects/constants";
 import { cn } from "@/lib/utils";
-
-const fieldClass = "bg-surface border-border focus-visible:ring-brand/30";
 
 type ProjectFormProps = {
   values: ProjectFormValues;
@@ -33,134 +29,64 @@ export function ProjectForm({
   projectId,
   idPrefix = "project",
 }: ProjectFormProps) {
-  function patch(partial: Partial<ProjectFormValues>) {
-    onChange({ ...values, ...partial });
-  }
-
   return (
     <div className="space-y-6">
-      <FormSection title="">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Project name" htmlFor={`${idPrefix}-name`} required>
-            <Input
-              id={`${idPrefix}-name`}
-              required
-              placeholder="Project Name"
-              value={values.name}
-              onChange={(e) => patch({ name: e.target.value })}
-              className={fieldClass}
-            />
-          </FormField>
+      <div className={cn(previewTitleField, "-mx-2.5")}>
+        <input
+          id={`${idPrefix}-name`}
+          required
+          placeholder="Project name"
+          value={values.name}
+          onChange={(e) => onChange({ ...values, name: e.target.value })}
+          className={cn(
+            "w-full border-0 bg-transparent outline-none placeholder:text-muted-foreground/45",
+            previewModalTitle,
+          )}
+        />
+      </div>
 
-          <FormField label="Status" required>
-            <Select
-              value={values.status}
-              onValueChange={(v) => patch({ status: v as ProjectStatus })}
-            >
-              <SelectTrigger className={cn(fieldClass, "w-full")}>
-                <SelectValue placeholder="Select status" />
-              </SelectTrigger>
-              <SelectContent>
-                {PROJECT_STATUSES.map((s) => (
-                  <SelectItem key={s.value} value={s.value}>
-                    {s.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </FormField>
-        </div>
+      <ProjectFormMeta values={values} onChange={onChange} />
 
-        <FormField label="Client name" htmlFor={`${idPrefix}-client`}>
-          <Input
-            id={`${idPrefix}-client`}
-            placeholder="Client or company name"
-            value={values.client}
-            onChange={(e) => patch({ client: e.target.value })}
-            className={fieldClass}
-          />
-        </FormField>
-      </FormSection>
-
-      <FormSection title="Budget & timeline">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Budget ($)" htmlFor={`${idPrefix}-budget`}>
-            <Input
-              id={`${idPrefix}-budget`}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              value={values.budget}
-              onChange={(e) => patch({ budget: e.target.value })}
-              className={fieldClass}
-            />
-          </FormField>
-
-          <FormField label="Hourly rate ($)" htmlFor={`${idPrefix}-hourly-rate`}>
-            <Input
-              id={`${idPrefix}-hourly-rate`}
-              type="number"
-              min="0"
-              step="0.01"
-              placeholder="0.00"
-              value={values.hourlyRate}
-              onChange={(e) => patch({ hourlyRate: e.target.value })}
-              className={fieldClass}
-            />
-          </FormField>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <FormField label="Start date" htmlFor={`${idPrefix}-start-date`}>
-            <Input
-              id={`${idPrefix}-start-date`}
-              type="date"
-              value={values.startDate}
-              onChange={(e) => patch({ startDate: e.target.value })}
-              className={fieldClass}
-            />
-          </FormField>
-
-          <FormField label="End date" htmlFor={`${idPrefix}-end-date`}>
-            <Input
-              id={`${idPrefix}-end-date`}
-              type="date"
-              value={values.endDate}
-              onChange={(e) => patch({ endDate: e.target.value })}
-              className={fieldClass}
-            />
-          </FormField>
-        </div>
-      </FormSection>
-
-      <FormSection title="Details">
-        <FormField label="Description" required>
+      <section className={previewFieldBlock}>
+        <span className="text-xs font-medium text-muted-foreground">
+          Description<span className="ml-0.5 text-danger">*</span>
+        </span>
+        <div className="mt-2">
           <RichTextEditor
             value={values.description}
-            onChange={(description) => patch({ description })}
-            placeholder="Describe the project scope, goals, and deliverables…"
-            minHeight="140px"
+            onChange={(description) => onChange({ ...values, description })}
+            placeholder="Describe scope, goals, and deliverables…"
+            minHeight="100px"
           />
-        </FormField>
+        </div>
+      </section>
 
+      <section className={previewFieldBlock}>
+        <span className="text-xs font-medium text-muted-foreground">Internal note</span>
+        <div className="mt-2">
+          <RichTextEditor
+            value={values.note}
+            onChange={(note) => onChange({ ...values, note })}
+            placeholder="Team-only notes (optional)…"
+            minHeight="90px"
+          />
+        </div>
+      </section>
+
+      <section className={previewFieldBlock}>
+        <div className="mb-2 flex items-center gap-2">
+          <Paperclip className="size-3.5 text-muted-foreground/70" strokeWidth={1.75} />
+          <span className="text-xs font-medium text-muted-foreground">Attachments</span>
+        </div>
         <ProjectAttachmentsField
           idPrefix={idPrefix}
           orgId={orgId}
           projectId={projectId}
           newFiles={newFiles}
           onNewFilesChange={onNewFilesChange}
+          bare
         />
-
-        <FormField label="Note">
-          <RichTextEditor
-            value={values.note}
-            onChange={(note) => patch({ note })}
-            placeholder="Internal notes (optional)…"
-            minHeight="100px"
-          />
-        </FormField>
-      </FormSection>
+      </section>
     </div>
   );
 }

@@ -1,14 +1,26 @@
-import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
-import { AppModal } from "@/components/ui/app-modal";
-import { Button } from "@/components/ui/button";
-import { isRichTextEmpty } from "@/components/ui/rich-text-editor";
+import { useEffect, useMemo, useState } from "react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { FolderKanban, Loader2, X } from "lucide-react";
+import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import {
+  hasOpenNestedOverlay,
+  isPortaledOverlayTarget,
+} from "@/components/tasks/preview/task-preview-dialog-guards";
+import {
+  previewFormCancelBtn,
+  previewFormFooter,
+  previewFormSubmitBtn,
+  previewInteractiveHover,
+  previewModalShell,
+} from "@/components/tasks/preview/task-preview-styles";
 import { ProjectForm } from "@/components/projects/project-form";
+import { isRichTextEmpty } from "@/components/ui/rich-text-editor";
 import { PROJECT_FORM_DEFAULTS, type ProjectFormValues } from "@/lib/projects/constants";
 import { createProject, PROJECT_MIGRATION_HINT } from "@/lib/projects/create-project";
 import { projectToFormValues } from "@/lib/projects/mappers";
 import type { ProjectRecord } from "@/lib/projects/types";
 import { updateProject } from "@/lib/projects/update-project";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ProjectFormModalProps = {
@@ -117,51 +129,90 @@ export function ProjectFormModal({
     }
   }
 
+  const headerLabel = useMemo(
+    () => (isEdit ? "Edit project" : "New project"),
+    [isEdit],
+  );
+
+  const submitLabel = isEdit ? "Save changes" : "Create project";
+
   return (
-    <AppModal
-      open={open}
-      onOpenChange={handleOpenChange}
-      title={isEdit ? "Edit project" : "New project"}
-      description={
-        isEdit
-          ? "Update project details, description, and attachments."
-          : "Add a new project with details, description, and attachments."
-      }
-      size="lg"
-      footer={
-        <>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => handleOpenChange(false)}
-            disabled={submitting}
-            className="border-border bg-background hover:bg-surface"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="submit"
-            form={formId}
-            disabled={submitting}
-            className="bg-brand text-brand-foreground hover:brightness-110"
-          >
-            {submitting && <Loader2 className="size-4 animate-spin" />}
-            {isEdit ? "Save changes" : "Create project"}
-          </Button>
-        </>
-      }
-    >
-      <form id={formId} onSubmit={handleSubmit}>
-        <ProjectForm
-          values={values}
-          onChange={setValues}
-          newFiles={newFiles}
-          onNewFilesChange={setNewFiles}
-          orgId={orgId}
-          projectId={isEdit ? project?.id : undefined}
-          idPrefix={isEdit ? "edit-project" : "project"}
-        />
-      </form>
-    </AppModal>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
+      <DialogPortal>
+        <DialogOverlay className="bg-black/45 backdrop-blur-[3px]" />
+        <DialogPrimitive.Content
+          className={previewModalShell}
+          onOpenAutoFocus={(e) => e.preventDefault()}
+          onInteractOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onFocusOutside={(e) => {
+            if (isPortaledOverlayTarget(e.target)) e.preventDefault();
+          }}
+          onEscapeKeyDown={(e) => {
+            if (hasOpenNestedOverlay()) e.preventDefault();
+          }}
+        >
+          <header className="flex shrink-0 items-center justify-between gap-4 border-b border-border/40 px-5 py-3">
+            <div className="flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
+              <FolderKanban className="size-3.5 shrink-0" strokeWidth={1.75} />
+              <span className="font-medium text-foreground">{headerLabel}</span>
+              {isEdit && project?.name && (
+                <>
+                  <span className="text-muted-foreground/40">·</span>
+                  <span className="truncate">{project.name}</span>
+                </>
+              )}
+            </div>
+
+            <DialogPrimitive.Close
+              className={cn(
+                "grid size-8 place-items-center rounded-md text-muted-foreground",
+                previewInteractiveHover,
+              )}
+            >
+              <X className="size-4" />
+            </DialogPrimitive.Close>
+          </header>
+
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain">
+            <form id={formId} onSubmit={handleSubmit} className="px-6 pb-6 pt-5">
+              <ProjectForm
+                values={values}
+                onChange={setValues}
+                newFiles={newFiles}
+                onNewFilesChange={setNewFiles}
+                orgId={orgId}
+                projectId={isEdit ? project?.id : undefined}
+                idPrefix={isEdit ? "edit-project" : "project"}
+              />
+            </form>
+          </div>
+
+          <footer className={previewFormFooter}>
+            <button
+              type="button"
+              onClick={() => handleOpenChange(false)}
+              disabled={submitting}
+              className={previewFormCancelBtn}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form={formId}
+              disabled={submitting}
+              className={previewFormSubmitBtn}
+            >
+              {submitting && <Loader2 className="size-3.5 animate-spin" />}
+              {submitLabel}
+            </button>
+          </footer>
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    </Dialog>
   );
 }

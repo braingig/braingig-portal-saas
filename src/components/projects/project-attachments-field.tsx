@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { FormField } from "@/components/ui/form-field";
 import { FileUpload } from "@/components/ui/file-upload";
 import { FilePreview } from "@/components/ui/file-preview";
 import {
@@ -7,6 +6,7 @@ import {
   listProjectAttachments,
   type ProjectAttachment,
 } from "@/lib/projects/attachments";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 type ProjectAttachmentsFieldProps = {
@@ -15,6 +15,7 @@ type ProjectAttachmentsFieldProps = {
   projectId?: string;
   newFiles: File[];
   onNewFilesChange: (files: File[]) => void;
+  bare?: boolean;
 };
 
 export function ProjectAttachmentsField({
@@ -23,6 +24,7 @@ export function ProjectAttachmentsField({
   projectId,
   newFiles,
   onNewFilesChange,
+  bare = false,
 }: ProjectAttachmentsFieldProps) {
   const [existing, setExisting] = useState<ProjectAttachment[]>([]);
   const [loadingExisting, setLoadingExisting] = useState(false);
@@ -50,14 +52,14 @@ export function ProjectAttachmentsField({
     }
   }
 
-  return (
-    <FormField label="Attachments" htmlFor={`${idPrefix}-attachment`}>
+  const body = (
+    <>
       {loadingExisting && (
-        <p className="mb-2 text-xs text-muted-foreground">Loading existing files…</p>
+        <p className="mb-2 text-xs text-muted-foreground">Loading files…</p>
       )}
 
       {existing.length > 0 && (
-        <div className="mb-3 grid gap-3 sm:grid-cols-2">
+        <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {existing.map((attachment) => (
             <FilePreview
               key={attachment.id}
@@ -67,7 +69,7 @@ export function ProjectAttachmentsField({
               mimeType={attachment.mime_type}
               sizeBytes={attachment.size_bytes}
               onRemove={() => removeExisting(attachment)}
-              compact
+              size="dense"
             />
           ))}
         </div>
@@ -78,7 +80,19 @@ export function ProjectAttachmentsField({
         files={newFiles}
         onFilesChange={onNewFilesChange}
         multiple
+        className="[&_label]:min-h-[56px] [&_label]:rounded-lg [&_label]:border-border/50 [&_label]:bg-surface/30 [&_label]:px-3 [&_label]:py-2.5 [&_label]:hover:border-border/70 [&_label]:hover:bg-surface/50 [&_p]:text-xs"
       />
-    </FormField>
+    </>
+  );
+
+  if (bare) {
+    return <div>{body}</div>;
+  }
+
+  return (
+    <div className={cn("space-y-3")}>
+      <p className="text-xs font-medium text-muted-foreground">Attachments</p>
+      {body}
+    </div>
   );
 }
