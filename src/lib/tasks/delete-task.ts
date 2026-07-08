@@ -64,14 +64,33 @@ export type DeleteTaskResult = {
 };
 
 /** Deletes a task and its subtree, including attachments and related rows. */
-export async function deleteTaskRecord(orgId: string, taskId: string): Promise<DeleteTaskResult> {
+export async function deleteTaskRecord(
+  orgId: string,
+  taskId: string,
+  actorId?: string,
+): Promise<DeleteTaskResult> {
   const { data: taskRow, error: fetchError } = await supabase
     .from("tasks")
-    .select("id, title, parent_id")
+    .select("id, title, parent_id, project_id, created_by")
     .eq("id", taskId)
     .maybeSingle();
 
   if (fetchError) throw new Error(fetchError.message);
+
+  if (taskRow && actorId) {
+    const { notifyTaskDeleted, resolveNotificationActorName } = await import(
+      "@/lib/notifications/task-notifications"
+    );
+    const actorName = await resolveNotificationActorName(actorId);
+    await notifyTaskDeleted({
+      orgId,
+      taskId: taskRow.id,
+      taskTitle: taskRow.title,
+      projectId: taskRow.project_id,
+      actorId,
+      actorName,
+    }).catch((err) => console.warn("Task deleted notification failed:", err));
+  }
 
   const taskIds = await collectTaskSubtreeIds(taskId);
 

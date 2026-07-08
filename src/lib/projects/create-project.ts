@@ -4,6 +4,10 @@ import { syncPrimaryAttachmentUrl, uploadProjectFiles } from "./attachments";
 import type { ProjectFormValues } from "./constants";
 import { buildBasePayload, buildExtendedPayload } from "./payload";
 import { isMissingColumnError } from "./upload-attachment";
+import {
+  notifyProjectCreated,
+  notifyProjectMentions,
+} from "@/lib/notifications/project-notifications";
 
 type CreateProjectInput = {
   orgId: string;
@@ -41,6 +45,22 @@ export async function createProject({ orgId, userId, values, files }: CreateProj
     attachmentCount: uploadedCount,
     partialSave: usedFallback,
   });
+
+  void notifyProjectCreated({
+    orgId,
+    projectId: data.id,
+    projectName: values.name.trim(),
+    actorId: userId,
+  }).catch((err) => console.warn("Project created notification failed:", err));
+
+  void notifyProjectMentions({
+    orgId,
+    projectId: data.id,
+    projectName: values.name.trim(),
+    actorId: userId,
+    description: values.description,
+    note: values.note,
+  }).catch((err) => console.warn("Project mention notification failed:", err));
 
   return {
     project: data,

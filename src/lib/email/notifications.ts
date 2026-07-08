@@ -3,9 +3,14 @@ import {
   sendInviteEmailFn,
   sendMemberJoinedEmailFn,
   sendOrganizationCreatedEmailFn,
+  sendProjectMentionEmailFn,
+  sendProjectTaskCreatedEmailFn,
   sendTaskAssignedEmailFn,
+  sendTaskCommentEmailFn,
   sendTaskMentionEmailFn,
+  sendTaskUrgentPriorityEmailFn,
   sendTestEmailFn,
+  sendWorkspaceProjectCreatedEmailFn,
 } from "@/lib/email/notifications.server";
 
 function logEmailFailure(label: string, err: unknown) {
@@ -78,6 +83,87 @@ export async function sendTaskMentionEmails(params: {
     return await sendTaskMentionEmailFn({ data: params });
   } catch (err) {
     logEmailFailure("task mention", err);
+    return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendWorkspaceProjectCreatedEmails(params: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  actorName: string;
+}): Promise<EmailSendResult> {
+  try {
+    return await sendWorkspaceProjectCreatedEmailFn({ data: params });
+  } catch (err) {
+    logEmailFailure("workspace project created", err);
+    return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendProjectTaskCreatedEmails(params: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  actorName: string;
+}): Promise<EmailSendResult> {
+  try {
+    return await sendProjectTaskCreatedEmailFn({ data: params });
+  } catch (err) {
+    logEmailFailure("project task created", err);
+    return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendProjectMentionEmails(params: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  mentionUserIds: string[];
+  authorName: string;
+  context: "description" | "note";
+}): Promise<EmailSendResult> {
+  if (!params.mentionUserIds.length) return { sent: false, reason: "no_recipients" };
+  try {
+    return await sendProjectMentionEmailFn({ data: params });
+  } catch (err) {
+    logEmailFailure("project mention", err);
+    return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendTaskCommentEmails(params: {
+  orgId: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  authorName: string;
+  excerpt: string;
+}): Promise<EmailSendResult> {
+  if (!params.assigneeUserIds.length) return { sent: false, reason: "no_recipients" };
+  try {
+    return await sendTaskCommentEmailFn({ data: params });
+  } catch (err) {
+    logEmailFailure("task comment", err);
+    return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+export async function sendTaskUrgentPriorityEmails(params: {
+  orgId: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  actorName: string;
+}): Promise<EmailSendResult> {
+  if (!params.assigneeUserIds.length) return { sent: false, reason: "no_recipients" };
+  try {
+    return await sendTaskUrgentPriorityEmailFn({ data: params });
+  } catch (err) {
+    logEmailFailure("task urgent priority", err);
     return { sent: false, reason: "request_failed", message: err instanceof Error ? err.message : String(err) };
   }
 }

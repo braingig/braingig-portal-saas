@@ -4,8 +4,11 @@ import { isMissingColumnError } from "@/lib/projects/upload-attachment";
 import { uploadTaskFiles } from "./attachments";
 import type { TaskFormValues } from "./constants";
 import { extractMentionIdsFromHtml } from "@/lib/tasks/comment-mentions";
-import { sendTaskAssignedEmails } from "@/lib/email/notifications";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
+import {
+  notifyTaskAssignees,
+  notifyUrgentTaskPriority,
+} from "@/lib/notifications/task-notifications";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 
 type UpdateTaskInput = {
@@ -19,6 +22,8 @@ type UpdateTaskInput = {
   previousDescription?: string | null;
   previousNote?: string | null;
   previousAssigneeIds?: string[];
+  previousPriority?: string | null;
+  isSubtask?: boolean;
 };
 
 function buildBasePayload(values: TaskFormValues) {
@@ -63,6 +68,8 @@ export async function updateTask({
   previousDescription,
   previousNote,
   previousAssigneeIds = [],
+  previousPriority,
+  isSubtask = false,
 }: UpdateTaskInput) {
   let payload = buildExtendedPayload(values);
   let usedFallback = false;
@@ -100,13 +107,26 @@ export async function updateTask({
   );
 
   if (newAssignees.length > 0) {
-    await sendTaskAssignedEmails({
+    await notifyTaskAssignees({
       orgId,
       taskId,
       taskTitle,
       assigneeUserIds: newAssignees,
-      assignerName: authorName,
+      actorId: userId,
+      actorName: authorName,
+      context: isSubtask ? "subtask" : "task",
     });
+  }
+
+  if (values.priority === "urgent" && previousPriority !== "urgent" && values.assigneeIds.length > 0) {
+    void notifyUrgentTaskPriority({
+      orgId,
+      taskId,
+      taskTitle,
+      assigneeUserIds: values.assigneeIds,
+      actorId: userId,
+      actorName: authorName,
+    }).catch((err) => console.warn("Urgent priority notification failed:", err));
   }
 
   await Promise.all([

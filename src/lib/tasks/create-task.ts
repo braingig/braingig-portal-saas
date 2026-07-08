@@ -4,8 +4,12 @@ import { isMissingColumnError } from "@/lib/projects/upload-attachment";
 import { uploadTaskFiles } from "./attachments";
 import type { TaskFormValues } from "./constants";
 import { extractMentionIdsFromHtml } from "@/lib/tasks/comment-mentions";
-import { sendTaskAssignedEmails } from "@/lib/email/notifications";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
+import {
+  notifyProjectTaskCreated,
+  notifyTaskAssignees,
+  notifyUrgentTaskPriority,
+} from "@/lib/notifications/task-notifications";
 import type { TaskOrgMember } from "@/lib/tasks/types";
 
 type CreateTaskInput = {
@@ -104,15 +108,41 @@ export async function createTask({
   });
 
   const taskTitle = values.title.trim();
+  const assignContext = parentId ? "subtask" as const : "task" as const;
 
   if (values.assigneeIds.length > 0) {
-    await sendTaskAssignedEmails({
+    await notifyTaskAssignees({
       orgId,
       taskId: data.id,
       taskTitle,
       assigneeUserIds: values.assigneeIds,
-      assignerName: authorName,
+      actorId: userId,
+      actorName: authorName,
+      context: assignContext,
     });
+  }
+
+  if (values.projectId) {
+    void notifyProjectTaskCreated({
+      orgId,
+      projectId: values.projectId,
+      taskId: data.id,
+      taskTitle,
+      assigneeUserIds: values.assigneeIds,
+      actorId: userId,
+      actorName: authorName,
+    }).catch((err) => console.warn("Project task created notification failed:", err));
+  }
+
+  if (values.priority === "urgent" && values.assigneeIds.length > 0) {
+    void notifyUrgentTaskPriority({
+      orgId,
+      taskId: data.id,
+      taskTitle,
+      assigneeUserIds: values.assigneeIds,
+      actorId: userId,
+      actorName: authorName,
+    }).catch((err) => console.warn("Urgent priority notification failed:", err));
   }
 
   await Promise.all([

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { CreateProjectFolderModal } from "@/components/projects/create-project-folder-modal";
 import { EditTaskModal } from "@/components/tasks/edit-task-modal";
+import { TaskDeleteConfirmDialog } from "@/components/tasks/task-delete-confirm-dialog";
 import { TaskPreviewModal } from "@/components/tasks/preview/task-preview-modal";
 import { TaskProjectGroup } from "@/components/tasks/task-project-group";
 import { TasksBoardPlaceholder } from "@/components/tasks/tasks-board-placeholder";
@@ -31,12 +32,22 @@ import {
   taskOrSubtasksMatchSearch,
 } from "@/lib/tasks/search";
 import { folderDeleteConfirmMessage, deleteProjectFolder } from "@/lib/projects/delete-folder";
-import { canDeleteTask, deleteTaskRecord, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
+import { canDeleteTask, deleteTaskRecord } from "@/lib/tasks/delete-task";
 import { fetchOrgSubtasksMap } from "@/lib/tasks/subtasks";
 import { countOpenTasks } from "@/lib/tasks/status";
 import type { TaskListItem, TaskMilestone, TaskOrgMember, TaskProjectGroup as ProjectGroup } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export const Route = createFileRoute("/_authenticated/tasks/")({
   head: () => ({ meta: [{ title: "Tasks · WorkPilot" }] }),
@@ -62,6 +73,18 @@ function TasksPage() {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [folderProjectId, setFolderProjectId] = useState<string | null>(null);
   const [previewTaskId, setPreviewTaskId] = useState<string | null>(null);
+  const [pendingDeleteTask, setPendingDeleteTask] = useState<{
+    task: TaskListItem;
+    isSubtask: boolean;
+    subtaskCount: number;
+  } | null>(null);
+  const [deletingTask, setDeletingTask] = useState(false);
+  const [pendingDeleteFolder, setPendingDeleteFolder] = useState<{
+    folderId: string;
+    folderTitle: string;
+    taskCount: number;
+  } | null>(null);
+  const [deletingFolder, setDeletingFolder] = useState(false);
 
   const loadTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const loadRef = useRef<() => Promise<void>>(async () => {});
@@ -187,7 +210,7 @@ function TasksPage() {
     changeStatus(task, task.status === "done" ? "todo" : "done");
   }
 
-  async function handleDeleteTask(task: TaskListItem) {
+  function requestDeleteTask(task: TaskListItem) {
     if (!orgId || !user) return;
     if (!canDeleteTask(task, user.id, hasAny)) {
       toast.error("You do not have permission to delete this task");
@@ -196,11 +219,22 @@ function TasksPage() {
 
     const isSubtask = [...subtasksByParent.values()].some((subs) => subs.some((s) => s.id === task.id));
     const subtaskCount = subtasksByParent.get(task.id)?.length ?? 0;
-    if (!confirm(taskDeleteConfirmMessage({ isSubtask, subtaskCount: isSubtask ? 0 : subtaskCount }))) return;
+    setPendingDeleteTask({
+      task,
+      isSubtask,
+      subtaskCount: isSubtask ? 0 : subtaskCount,
+    });
+  }
 
+  async function confirmDeleteTask() {
+    if (!orgId || !pendingDeleteTask) return;
+
+    const { task, isSubtask } = pendingDeleteTask;
+    setDeletingTask(true);
     try {
-      await deleteTaskRecord(orgId, task.id);
+      await deleteTaskRecord(orgId, task.id, user.id);
       toast.success(isSubtask ? "Subtask deleted" : "Task deleted");
+      setPendingDeleteTask(null);
       if (previewTaskId === task.id) setPreviewTaskId(null);
       if (editingTaskId === task.id) {
         setEditingTaskId(null);
@@ -209,23 +243,33 @@ function TasksPage() {
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete task");
+    } finally {
+      setDeletingTask(false);
     }
   }
 
-  async function handleDeleteFolder(folderId: string, folderTitle: string, taskCount: number) {
-    if (!confirm(folderDeleteConfirmMessage(taskCount))) return;
+  function requestDeleteFolder(folderId: string, folderTitle: string, taskCount: number) {
+    setPendingDeleteFolder({ folderId, folderTitle, taskCount });
+  }
 
+  async function confirmDeleteFolder() {
+    if (!pendingDeleteFolder) return;
+
+    setDeletingFolder(true);
     try {
-      await deleteProjectFolder(folderId);
-      toast.success(`Folder "${folderTitle}" deleted`);
+      await deleteProjectFolder(pendingDeleteFolder.folderId);
+      toast.success(`Folder "${pendingDeleteFolder.folderTitle}" deleted`);
+      setPendingDeleteFolder(null);
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to delete folder");
+    } finally {
+      setDeletingFolder(false);
     }
   }
 
   const onDeleteTask = (task: TaskListItem) => {
-    void handleDeleteTask(task);
+    requestDeleteTask(task);
   };
 
   const filteredTasks = useMemo(
@@ -375,7 +419,7 @@ function TasksPage() {
                 onStatusChange={changeStatus}
                 onEdit={openEditModal}
                 onDelete={onDeleteTask}
-                onDeleteFolder={handleDeleteFolder}
+                onDeleteFolder={requestDeleteFolder}
                 hasDeleteRole={hasAny}
                 onOpenTask={openTaskPreview}
                 defaultExpanded={Boolean(searchQuery.trim()) || group.tasks.length > 0 || projectFilter === group.id}
@@ -424,6 +468,48 @@ function TasksPage() {
           />
         </>
       )}
+
+      <TaskDeleteConfirmDialog
+        open={Boolean(pendingDeleteTask)}
+        onOpenChange={(open) => {
+          if (!open && !deletingTask) setPendingDeleteTask(null);
+        }}
+        isSubtask={pendingDeleteTask?.isSubtask}
+        subtaskCount={pendingDeleteTask?.subtaskCount ?? 0}
+        deleting={deletingTask}
+        onConfirm={confirmDeleteTask}
+      />
+
+      <AlertDialog
+        open={Boolean(pendingDeleteFolder)}
+        onOpenChange={(open) => {
+          if (!open && !deletingFolder) setPendingDeleteFolder(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete folder?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {pendingDeleteFolder
+                ? folderDeleteConfirmMessage(pendingDeleteFolder.taskCount)
+                : ""}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deletingFolder}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmDeleteFolder();
+              }}
+              disabled={deletingFolder}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </AppShell>
   );
 }

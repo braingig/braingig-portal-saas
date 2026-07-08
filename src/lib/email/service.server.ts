@@ -11,8 +11,14 @@ import {
   inviteEmailTemplate,
   memberJoinedEmailTemplate,
   organizationCreatedEmailTemplate,
+  projectMentionEmailTemplate,
+  projectTaskCreatedEmailTemplate,
   taskAssignedEmailTemplate,
+  taskCommentEmailTemplate,
+  taskDueReminderEmailTemplate,
   taskMentionEmailTemplate,
+  taskUrgentPriorityEmailTemplate,
+  workspaceProjectCreatedEmailTemplate,
 } from "@/lib/email/templates.server";
 
 export type EmailSendResult = {
@@ -259,4 +265,230 @@ export async function sendTestOrgEmail(orgId: string, toEmail: string): Promise<
     `<p>This is a test email from <strong>${org.name}</strong> on WorkPilot.</p>`,
     "test",
   );
+}
+
+async function resolveOrgOwnerAdminUserIds(orgId: string): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("organization_id", orgId)
+    .in("role", ["owner", "admin"]);
+
+  return [...new Set((data ?? []).map((row) => row.user_id).filter(Boolean))];
+}
+
+export async function sendWorkspaceProjectCreatedNotification(input: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  actorUserId: string;
+  actorName: string;
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  const recipientIds = (await resolveOrgOwnerAdminUserIds(input.orgId))
+    .filter((id) => id !== input.actorUserId);
+
+  if (!recipientIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, recipientIds);
+  const projectUrl = `${getAppUrl()}/projects/${input.projectId}`;
+  const { subject, html } = workspaceProjectCreatedEmailTemplate({
+    orgName: org.name,
+    projectName: input.projectName,
+    creatorName: input.actorName,
+    projectUrl,
+  });
+
+  const recipients = recipientIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "workspace project created"),
+    recipients,
+  );
+}
+
+export async function sendProjectTaskCreatedNotification(input: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  actorUserId: string;
+  actorName: string;
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  const { data: project } = await supabaseAdmin
+    .from("projects")
+    .select("owner_id")
+    .eq("id", input.projectId)
+    .maybeSingle();
+
+  const recipientIds = uniqueRecipientUserIds([
+    ...(await resolveOrgOwnerAdminUserIds(input.orgId)),
+    project?.owner_id ?? null,
+    ...input.assigneeUserIds,
+  ], input.actorUserId);
+
+  if (!recipientIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, recipientIds);
+  const taskUrl = `${getAppUrl()}/tasks/${input.taskId}`;
+  const { subject, html } = projectTaskCreatedEmailTemplate({
+    orgName: org.name,
+    projectName: input.projectName,
+    actorName: input.actorName,
+    taskTitle: input.taskTitle,
+    taskUrl,
+  });
+
+  const recipients = recipientIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "project task created"),
+    recipients,
+  );
+}
+
+export async function sendProjectMentionNotification(input: {
+  orgId: string;
+  projectId: string;
+  projectName: string;
+  mentionUserIds: string[];
+  authorUserId: string;
+  authorName: string;
+  context: "description" | "note";
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  const mentionIds = input.mentionUserIds.filter((id) => id !== input.authorUserId);
+  if (!mentionIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, mentionIds);
+  const projectUrl = `${getAppUrl()}/projects/${input.projectId}`;
+  const { subject, html } = projectMentionEmailTemplate({
+    orgName: org.name,
+    authorName: input.authorName,
+    projectName: input.projectName,
+    context: input.context,
+    projectUrl,
+  });
+
+  const recipients = mentionIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "project mention"),
+    recipients,
+  );
+}
+
+export async function sendTaskCommentNotification(input: {
+  orgId: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  authorUserId: string;
+  authorName: string;
+  excerpt: string;
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  const recipientIds = input.assigneeUserIds.filter((id) => id !== input.authorUserId);
+  if (!recipientIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, recipientIds);
+  const taskUrl = `${getAppUrl()}/tasks/${input.taskId}`;
+  const { subject, html } = taskCommentEmailTemplate({
+    orgName: org.name,
+    authorName: input.authorName,
+    taskTitle: input.taskTitle,
+    excerpt: input.excerpt,
+    taskUrl,
+  });
+
+  const recipients = recipientIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "task comment"),
+    recipients,
+  );
+}
+
+export async function sendTaskDueReminderNotification(input: {
+  orgId: string;
+  taskId: string;
+  taskTitle: string;
+  dueDate: string;
+  daysBefore: number;
+  assigneeUserIds: string[];
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  if (!input.assigneeUserIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, input.assigneeUserIds);
+  const taskUrl = `${getAppUrl()}/tasks/${input.taskId}`;
+  const { subject, html } = taskDueReminderEmailTemplate({
+    orgName: org.name,
+    taskTitle: input.taskTitle,
+    dueDate: input.dueDate,
+    daysBefore: input.daysBefore,
+    taskUrl,
+  });
+
+  const recipients = input.assigneeUserIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "task due reminder"),
+    recipients,
+  );
+}
+
+export async function sendTaskUrgentPriorityNotification(input: {
+  orgId: string;
+  taskId: string;
+  taskTitle: string;
+  assigneeUserIds: string[];
+  actorUserId: string;
+  actorName: string;
+}): Promise<EmailSendResult> {
+  const org = await loadOrg(input.orgId);
+  const recipientIds = input.assigneeUserIds.filter((id) => id !== input.actorUserId);
+  if (!recipientIds.length) return { sent: false, reason: "no_recipients" };
+
+  const emailMap = await resolveUserEmails(input.orgId, recipientIds);
+  const taskUrl = `${getAppUrl()}/tasks/${input.taskId}`;
+  const { subject, html } = taskUrgentPriorityEmailTemplate({
+    orgName: org.name,
+    actorName: input.actorName,
+    taskTitle: input.taskTitle,
+    taskUrl,
+  });
+
+  const recipients = recipientIds
+    .map((userId) => emailMap.get(userId))
+    .filter((email): email is string => Boolean(email));
+
+  return sendToMany(
+    (to) => sendOrgEmail(input.orgId, to, subject, html, "task urgent priority"),
+    recipients,
+  );
+}
+
+function uniqueRecipientUserIds(ids: Array<string | null | undefined>, excludeId?: string): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+  for (const id of ids) {
+    if (!id || id === excludeId || seen.has(id)) continue;
+    seen.add(id);
+    result.push(id);
+  }
+  return result;
 }

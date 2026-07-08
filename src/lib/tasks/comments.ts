@@ -3,6 +3,7 @@ import { extractMentionIds } from "@/lib/tasks/comment-mentions";
 import { deleteTaskAttachmentsByIds } from "@/lib/tasks/attachments";
 import { extractAttachmentIdsFromBodies, getCommentDisplayText } from "@/lib/tasks/comment-attachments";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
+import { notifyTaskComment } from "@/lib/notifications/task-notifications";
 import { fetchProfileEmails, withProfileEmail } from "@/lib/profile-emails";
 import type { TaskDetailProfile, TaskOrgMember } from "@/lib/tasks/types";
 
@@ -198,6 +199,16 @@ export async function createTaskComment({
     orgId,
     commentId: data.id,
   });
+
+  void notifyTaskComment({
+    orgId,
+    taskId,
+    taskTitle,
+    authorId,
+    authorName,
+    body: getCommentDisplayText(body),
+    mentionedUserIds: mentions,
+  }).catch((err) => console.warn("Task comment notification failed:", err));
 
   return data as TaskCommentRecord;
 }

@@ -17,6 +17,7 @@ import {
   fetchProjectActivityAudits,
   type ProjectActivityAudit,
 } from "@/lib/projects/project-activity";
+import { notifyProjectStatusChanged } from "@/lib/notifications/project-notifications";
 import type { ProjectMilestone, ProjectOwner, ProjectRecord, ProjectSubtask, ProjectTask } from "@/lib/projects/types";
 import { toast } from "sonner";
 
@@ -147,7 +148,7 @@ export function ProjectDetailsPageView({ projectId }: ProjectDetailsPageViewProp
   );
 
   async function handleStatusChange(status: string) {
-    if (!project) return;
+    if (!project || !user) return;
     const previous = project.status;
     const { error } = await supabase.from("projects").update({ status }).eq("id", project.id);
     if (error) toast.error(error.message);
@@ -158,6 +159,14 @@ export function ProjectDetailsPageView({ projectId }: ProjectDetailsPageViewProp
         value: status,
         previous,
       });
+      void notifyProjectStatusChanged({
+        orgId,
+        projectId: project.id,
+        projectName: project.name,
+        actorId: user.id,
+        previousStatus: previous,
+        nextStatus: status,
+      }).catch((err) => console.warn("Project status notification failed:", err));
       void loadAudits();
     }
   }

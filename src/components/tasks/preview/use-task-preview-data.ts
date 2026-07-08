@@ -27,6 +27,11 @@ import {
   type TaskCommentNode,
 } from "@/lib/tasks/comments";
 import { notifyTaskMentions } from "@/lib/tasks/mention-notifications";
+import { extractMentionIdsFromHtml } from "@/lib/tasks/comment-mentions";
+import {
+  notifyTaskAssignees,
+  notifyUrgentTaskPriority,
+} from "@/lib/notifications/task-notifications";
 import type { CommentAttachment } from "@/lib/tasks/comment-attachments";
 import { fetchMentionableMembers, fetchProfilesByIds } from "@/lib/tasks/org-members";
 import { fetchSubtaskListItems } from "@/lib/tasks/subtasks";
@@ -377,8 +382,27 @@ export function useTaskPreviewData(
     setTask((current) => (current ? { ...current, ...fields } : current));
     await refreshAudits();
     notifyParent();
+
+    if (user && orgId && task) {
+      const actorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+      if (
+        fields.priority === "urgent"
+        && task.priority !== "urgent"
+        && assigneeIds.length > 0
+      ) {
+        void notifyUrgentTaskPriority({
+          orgId,
+          taskId: task.id,
+          taskTitle: task.title,
+          assigneeUserIds: assigneeIds,
+          actorId: user.id,
+          actorName,
+        }).catch((err) => console.warn("Urgent priority notification failed:", err));
+      }
+    }
+
     return true;
-  }, [taskId, task, notifyParent, refreshAudits]);
+  }, [taskId, task, notifyParent, refreshAudits, user, orgId, profiles, assigneeIds]);
 
   const saveDescription = useCallback(async (value: string, previous: string) => {
     if (!user || !task || !orgId) return;
@@ -508,10 +532,27 @@ export function useTaskPreviewData(
     );
     await logTaskAssigneeChange(task.id, ids, assigneeNames);
 
+    if (user && orgId) {
+      const previousSet = new Set(previousIds);
+      const newAssigneeIds = ids.filter((id) => !previousSet.has(id));
+      if (newAssigneeIds.length > 0) {
+        const actorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+        void notifyTaskAssignees({
+          orgId,
+          taskId: task.id,
+          taskTitle: task.title,
+          assigneeUserIds: newAssigneeIds,
+          actorId: user.id,
+          actorName,
+          context: task.parent_id ? "subtask" : "task",
+        }).catch((err) => console.warn("Task assignee notification failed:", err));
+      }
+    }
+
     setAssignees(nextProfiles.filter((p) => ids.includes(p.id)));
     await refreshAudits();
     notifyParent();
-  }, [task, assigneeIds, profiles, orgId, notifyParent, refreshAudits]);
+  }, [task, assigneeIds, profiles, orgId, notifyParent, refreshAudits, user]);
 
   const toggleTimer = useCallback(async () => {
     if (!user || !task || !orgId) return;
@@ -563,7 +604,7 @@ export function useTaskPreviewData(
   const deleteTask = useCallback(async () => {
     if (!task || !orgId) return false;
     try {
-      await deleteTaskRecord(orgId, task.id);
+      await deleteTaskRecord(orgId, task.id, user.id);
       toast.success(task.parent_id ? "Subtask deleted" : "Task deleted");
       notifyParent();
       return true;
@@ -610,6 +651,20 @@ export function useTaskPreviewData(
         assigneeId,
       });
       setChecklistItems((current) => [...current, item]);
+
+      if (assigneeId && assigneeId !== user.id && orgId) {
+        const actorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+        void notifyTaskAssignees({
+          orgId,
+          taskId: task.id,
+          taskTitle: task.title,
+          assigneeUserIds: [assigneeId],
+          actorId: user.id,
+          actorName,
+          context: "checklist",
+          checklistItemTitle: title,
+        }).catch((err) => console.warn("Checklist assign notification failed:", err));
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Failed to add checklist item";
       if (msg.includes("task_checklist_items")) {
@@ -621,7 +676,7 @@ export function useTaskPreviewData(
       }
       throw err;
     }
-  }, [user, task, checklistItems.length]);
+  }, [user, task, checklistItems.length, orgId, profiles]);
 
   const assignChecklistItem = useCallback(async (item: TaskChecklistItem, assigneeId: string | null) => {
     const member = mentionMembers.find((m) => m.id === assigneeId);
@@ -645,6 +700,25 @@ export function useTaskPreviewData(
         setChecklistItems((current) =>
           current.map((row) => (row.id === item.id ? updated : row)),
         );
+        if (
+          assigneeId
+          && assigneeId !== previous.assignee_id
+          && assigneeId !== user?.id
+          && orgId
+          && task
+        ) {
+          const actorName = profiles.find((p) => p.id === user.id)?.full_name ?? "Someone";
+          void notifyTaskAssignees({
+            orgId,
+            taskId: task.id,
+            taskTitle: task.title,
+            assigneeUserIds: [assigneeId],
+            actorId: user.id,
+            actorName,
+            context: "checklist",
+            checklistItemTitle: item.title,
+          }).catch((err) => console.warn("Checklist assign notification failed:", err));
+        }
       }
     } catch (err: unknown) {
       setChecklistItems((current) =>
@@ -657,7 +731,7 @@ export function useTaskPreviewData(
         toast.error(msg);
       }
     }
-  }, [mentionMembers]);
+  }, [mentionMembers, user, task, orgId, profiles]);
 
   const toggleChecklistItem = useCallback(async (item: TaskChecklistItem) => {
     const next = !item.is_completed;

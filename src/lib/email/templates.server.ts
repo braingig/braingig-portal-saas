@@ -132,3 +132,134 @@ export function taskMentionEmailTemplate(args: {
     }),
   };
 }
+
+export function workspaceProjectCreatedEmailTemplate(args: {
+  orgName: string;
+  projectName: string;
+  creatorName: string;
+  projectUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `New project: ${args.projectName}`,
+    html: emailLayout({
+      title: "Project created",
+      preview: `${args.creatorName} created ${args.projectName}`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6"><strong>${args.creatorName}</strong> created a new project in <strong>${args.orgName}</strong>:</p>
+        <p style="margin:12px 0 0;padding:12px;background:#f4f4f5;border-radius:6px;color:#18181b;font-weight:600">${args.projectName}</p>`,
+      ctaLabel: "View project",
+      ctaUrl: args.projectUrl,
+    }),
+  };
+}
+
+export function projectTaskCreatedEmailTemplate(args: {
+  orgName: string;
+  projectName: string;
+  actorName: string;
+  taskTitle: string;
+  taskUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `New task in ${args.projectName}: ${args.taskTitle}`,
+    html: emailLayout({
+      title: "Task added to project",
+      preview: `${args.actorName} added "${args.taskTitle}" to ${args.projectName}`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6"><strong>${args.actorName}</strong> added a task to <strong>${args.projectName}</strong> in <strong>${args.orgName}</strong>:</p>
+        <p style="margin:12px 0 0;padding:12px;background:#f4f4f5;border-radius:6px;color:#18181b;font-weight:600">${args.taskTitle}</p>`,
+      ctaLabel: "View task",
+      ctaUrl: args.taskUrl,
+    }),
+  };
+}
+
+export function projectMentionEmailTemplate(args: {
+  orgName: string;
+  authorName: string;
+  projectName: string;
+  context: string;
+  projectUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `${args.authorName} mentioned you on: ${args.projectName}`,
+    html: emailLayout({
+      title: "You were mentioned",
+      preview: `${args.authorName} mentioned you on "${args.projectName}"`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6"><strong>${args.authorName}</strong> mentioned you in the <strong>${args.context}</strong> of project <strong>${args.projectName}</strong> in <strong>${args.orgName}</strong>.</p>`,
+      ctaLabel: "View project",
+      ctaUrl: args.projectUrl,
+    }),
+  };
+}
+
+export function taskCommentEmailTemplate(args: {
+  orgName: string;
+  authorName: string;
+  taskTitle: string;
+  excerpt: string;
+  taskUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `New comment on: ${args.taskTitle}`,
+    html: emailLayout({
+      title: "New task comment",
+      preview: `${args.authorName} commented on "${args.taskTitle}"`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6"><strong>${args.authorName}</strong> commented on <strong>${args.taskTitle}</strong> in <strong>${args.orgName}</strong>:</p>
+        <p style="margin:12px 0 0;padding:12px;background:#f4f4f5;border-radius:6px;color:#3f3f46;line-height:1.6">${args.excerpt}</p>`,
+      ctaLabel: "View task",
+      ctaUrl: args.taskUrl,
+    }),
+  };
+}
+
+export function taskUrgentPriorityEmailTemplate(args: {
+  orgName: string;
+  actorName: string;
+  taskTitle: string;
+  taskUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Urgent: ${args.taskTitle}`,
+    html: emailLayout({
+      title: "Urgent priority task",
+      preview: `${args.actorName} marked "${args.taskTitle}" as urgent`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6"><strong>${args.actorName}</strong> set priority to <strong>urgent</strong> on task <strong>${args.taskTitle}</strong> in <strong>${args.orgName}</strong>.</p>`,
+      ctaLabel: "View task",
+      ctaUrl: args.taskUrl,
+    }),
+  };
+}
+
+function formatDueDateLabel(dueDate: string): string {
+  const parsed = new Date(`${dueDate}T12:00:00`);
+  if (Number.isNaN(parsed.getTime())) return dueDate;
+  return parsed.toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function taskDueReminderEmailTemplate(args: {
+  orgName: string;
+  taskTitle: string;
+  dueDate: string;
+  daysBefore: number;
+  taskUrl: string;
+}): { subject: string; html: string } {
+  const dayLabel = args.daysBefore === 1 ? "1 day" : `${args.daysBefore} days`;
+  const dueLabel = formatDueDateLabel(args.dueDate);
+
+  return {
+    subject: `Due in ${dayLabel}: ${args.taskTitle}`,
+    html: emailLayout({
+      title: `Task due in ${dayLabel}`,
+      preview: `"${args.taskTitle}" is due on ${dueLabel}`,
+      bodyHtml: `<p style="margin:0;color:#3f3f46;line-height:1.6">Your task in <strong>${args.orgName}</strong> is due in <strong>${dayLabel}</strong>:</p>
+        <p style="margin:12px 0 0;padding:12px;background:#f4f4f5;border-radius:6px;color:#18181b;font-weight:600">${args.taskTitle}</p>
+        <p style="margin:12px 0 0;color:#3f3f46;line-height:1.6">Due date: <strong>${dueLabel}</strong></p>`,
+      ctaLabel: "View task",
+      ctaUrl: args.taskUrl,
+    }),
+  };
+}

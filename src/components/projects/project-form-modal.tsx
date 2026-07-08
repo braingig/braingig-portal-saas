@@ -20,6 +20,12 @@ import { createProject, PROJECT_MIGRATION_HINT } from "@/lib/projects/create-pro
 import { projectToFormValues } from "@/lib/projects/mappers";
 import type { ProjectRecord } from "@/lib/projects/types";
 import { updateProject } from "@/lib/projects/update-project";
+import {
+  notifyProjectMentions,
+  notifyProjectStatusChanged,
+} from "@/lib/notifications/project-notifications";
+import { fetchMentionableMembers } from "@/lib/tasks/org-members";
+import type { TaskOrgMember } from "@/lib/tasks/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -45,6 +51,7 @@ export function ProjectFormModal({
   const [values, setValues] = useState<ProjectFormValues>(PROJECT_FORM_DEFAULTS);
   const [newFiles, setNewFiles] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [mentionMembers, setMentionMembers] = useState<TaskOrgMember[]>([]);
 
   const isEdit = mode === "edit";
   const formId = isEdit ? "edit-project-form" : "create-project-form";
@@ -58,6 +65,11 @@ export function ProjectFormModal({
     }
     setNewFiles([]);
   }, [open, isEdit, project]);
+
+  useEffect(() => {
+    if (!open || !orgId) return;
+    void fetchMentionableMembers(orgId).then(setMentionMembers);
+  }, [open, orgId]);
 
   function handleOpenChange(next: boolean) {
     if (!next) {
@@ -83,6 +95,10 @@ export function ProjectFormModal({
     setSubmitting(true);
     try {
       if (isEdit) {
+        const previousStatus = project?.status;
+        const previousDescription = project?.description ?? "";
+        const previousNote = project?.note ?? "";
+
         const { attachmentUploaded, attachmentsFailed, needsMigration } = await updateProject({
           projectId: project!.id,
           orgId,
@@ -99,6 +115,31 @@ export function ProjectFormModal({
           toast.success("Project updated with new attachments");
         } else {
           toast.success("Project updated");
+        }
+
+        if (project) {
+          if (previousStatus && values.status !== previousStatus) {
+            void notifyProjectStatusChanged({
+              orgId,
+              projectId: project.id,
+              projectName: values.name.trim(),
+              actorId: userId,
+              previousStatus,
+              nextStatus: values.status,
+            }).catch((err) => console.warn("Project status notification failed:", err));
+          }
+
+          void notifyProjectMentions({
+            orgId,
+            projectId: project.id,
+            projectName: values.name.trim(),
+            actorId: userId,
+            description: values.description,
+            note: values.note,
+            previousDescription,
+            previousNote,
+            mentionMembers,
+          }).catch((err) => console.warn("Project mention notification failed:", err));
         }
       } else {
         const { attachmentUploaded, attachmentsFailed, needsMigration } = await createProject({

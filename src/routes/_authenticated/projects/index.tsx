@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useOrganization } from "@/hooks/use-organization";
 import type { ProjectSummary } from "@/lib/projects/types";
+import { notifyProjectStatusChanged } from "@/lib/notifications/project-notifications";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/projects/")({
@@ -38,12 +39,24 @@ function ProjectsPage() {
   useEffect(() => { load(); }, [orgId]);
 
   async function moveProject(id: string, status: string) {
+    const current = projects.find((p) => p.id === id);
     const { error } = await supabase.from("projects").update({ status }).eq("id", id);
     if (error) {
       toast.error("Failed to update status: " + error.message);
       return;
     }
     setProjects((p) => p.map((x) => x.id === id ? { ...x, status } : x));
+
+    if (user && orgId && current && current.status !== status) {
+      void notifyProjectStatusChanged({
+        orgId,
+        projectId: id,
+        projectName: current.name,
+        actorId: user.id,
+        previousStatus: current.status,
+        nextStatus: status,
+      }).catch((err) => console.warn("Project status notification failed:", err));
+    }
   }
 
   if (!orgId || loading) {

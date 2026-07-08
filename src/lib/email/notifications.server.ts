@@ -5,9 +5,14 @@ import {
   sendInviteNotification,
   sendMemberJoinedNotification,
   sendOrganizationCreatedNotification,
+  sendProjectMentionNotification,
+  sendProjectTaskCreatedNotification,
   sendTaskAssignedNotification,
+  sendTaskCommentNotification,
   sendTaskMentionNotification,
+  sendTaskUrgentPriorityNotification,
   sendTestOrgEmail,
+  sendWorkspaceProjectCreatedNotification,
 } from "@/lib/email/service.server";
 
 async function assertOrgMember(userId: string, orgId: string) {
@@ -111,4 +116,92 @@ export const sendTestEmailFn = createServerFn({ method: "POST" })
       throw new Error("Forbidden");
     }
     return sendTestOrgEmail(data.orgId, data.toEmail);
+  });
+
+export const sendWorkspaceProjectCreatedEmailFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: {
+    orgId: string;
+    projectId: string;
+    projectName: string;
+    actorName: string;
+  }) => data)
+  .handler(async ({ data, context }) => {
+    await assertOrgMember(context.userId, data.orgId);
+    return sendWorkspaceProjectCreatedNotification({
+      ...data,
+      actorUserId: context.userId,
+    });
+  });
+
+export const sendProjectTaskCreatedEmailFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: {
+    orgId: string;
+    projectId: string;
+    projectName: string;
+    taskId: string;
+    taskTitle: string;
+    assigneeUserIds: string[];
+    actorName: string;
+  }) => data)
+  .handler(async ({ data, context }) => {
+    await assertOrgMember(context.userId, data.orgId);
+    return sendProjectTaskCreatedNotification({
+      ...data,
+      actorUserId: context.userId,
+    });
+  });
+
+export const sendProjectMentionEmailFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: {
+    orgId: string;
+    projectId: string;
+    projectName: string;
+    mentionUserIds: string[];
+    authorName: string;
+    context: "description" | "note";
+  }) => data)
+  .handler(async ({ data, context }) => {
+    await assertOrgMember(context.userId, data.orgId);
+    return sendProjectMentionNotification({
+      ...data,
+      authorUserId: context.userId,
+    });
+  });
+
+export const sendTaskCommentEmailFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: {
+    orgId: string;
+    taskId: string;
+    taskTitle: string;
+    assigneeUserIds: string[];
+    authorName: string;
+    excerpt: string;
+  }) => data)
+  .handler(async ({ data, context }) => {
+    await assertOrgMember(context.userId, data.orgId);
+    return sendTaskCommentNotification({
+      ...data,
+      authorUserId: context.userId,
+    });
+  });
+
+export const sendTaskUrgentPriorityEmailFn = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .validator((data: {
+    orgId: string;
+    taskId: string;
+    taskTitle: string;
+    assigneeUserIds: string[];
+    actorName: string;
+  }) => data)
+  .handler(async ({ data, context }) => {
+    await assertOrgMember(context.userId, data.orgId);
+    return sendTaskUrgentPriorityNotification({
+      ...data,
+      actorUserId: context.userId,
+    });
   });

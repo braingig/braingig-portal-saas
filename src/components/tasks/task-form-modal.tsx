@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { CheckSquare, ChevronRight, ListTree, Loader2, Trash2, X } from "lucide-react";
 import { Dialog, DialogOverlay, DialogPortal } from "@/components/ui/dialog";
+import { TaskDeleteConfirmDialog } from "@/components/tasks/task-delete-confirm-dialog";
 import { TaskForm } from "@/components/tasks/task-form";
 import {
   hasOpenNestedOverlay,
@@ -18,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useRoles } from "@/hooks/use-role";
 import { TASK_FORM_DEFAULTS, type TaskFormValues } from "@/lib/tasks/constants";
 import { createTask, TASK_MIGRATION_HINT } from "@/lib/tasks/create-task";
-import { canDeleteTask, deleteTaskRecord, taskDeleteConfirmMessage } from "@/lib/tasks/delete-task";
+import { canDeleteTask, deleteTaskRecord } from "@/lib/tasks/delete-task";
 import { taskToFormValues } from "@/lib/tasks/mappers";
 import { updateTask } from "@/lib/tasks/update-task";
 import { countSubtasks } from "@/lib/tasks/subtasks";
@@ -68,6 +69,8 @@ export function TaskFormModal({
   const [projectName, setProjectName] = useState<string | null>(null);
   const [folderName, setFolderName] = useState<string | null>(null);
   const [parentTitle, setParentTitle] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteSubtaskCount, setDeleteSubtaskCount] = useState(0);
 
   const isEdit = mode === "edit";
   const isSubtaskForm = isSubtask || Boolean(loadedTask?.parent_id);
@@ -175,7 +178,7 @@ export function TaskFormModal({
     }
   }, [open, activeProjectId, activeMilestoneId, projects]);
 
-  async function handleDelete() {
+  async function requestDelete() {
     if (!isEdit || !taskId || !loadedTask) return;
     if (!canDeleteTask(loadedTask, userId, hasAny)) {
       toast.error("You do not have permission to delete this task");
@@ -183,15 +186,18 @@ export function TaskFormModal({
     }
 
     const subtaskCount = loadedTask.parent_id ? 0 : await countSubtasks(taskId);
-    if (!confirm(taskDeleteConfirmMessage({
-      isSubtask: Boolean(loadedTask.parent_id),
-      subtaskCount,
-    }))) return;
+    setDeleteSubtaskCount(subtaskCount);
+    setDeleteDialogOpen(true);
+  }
+
+  async function confirmDelete() {
+    if (!isEdit || !taskId || !loadedTask) return;
 
     setSubmitting(true);
     try {
-      await deleteTaskRecord(orgId, taskId);
+      await deleteTaskRecord(orgId, taskId, userId);
       toast.success(loadedTask.parent_id ? "Subtask deleted" : "Task deleted");
+      setDeleteDialogOpen(false);
       handleOpenChange(false);
       onSuccess();
     } catch (err) {
@@ -242,6 +248,8 @@ export function TaskFormModal({
           previousDescription: loadedTask?.description,
           previousNote: loadedTask?.note,
           previousAssigneeIds,
+          previousPriority: loadedTask?.priority ?? null,
+          isSubtask: Boolean(loadedTask?.parent_id),
         });
 
         if (needsMigration) {
@@ -298,6 +306,7 @@ export function TaskFormModal({
       : "Create task";
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogPortal>
         <DialogOverlay className="bg-black/45 backdrop-blur-[3px]" />
@@ -387,7 +396,7 @@ export function TaskFormModal({
               {showDelete && (
                 <button
                   type="button"
-                  onClick={() => void handleDelete()}
+                  onClick={() => void requestDelete()}
                   disabled={submitting || loadingTask}
                   className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
                 >
@@ -419,5 +428,15 @@ export function TaskFormModal({
         </DialogPrimitive.Content>
       </DialogPortal>
     </Dialog>
+
+    <TaskDeleteConfirmDialog
+      open={deleteDialogOpen}
+      onOpenChange={setDeleteDialogOpen}
+      isSubtask={isSubtaskForm}
+      subtaskCount={deleteSubtaskCount}
+      deleting={submitting}
+      onConfirm={confirmDelete}
+    />
+    </>
   );
 }

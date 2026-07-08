@@ -83,7 +83,7 @@ export function TaskPreviewSubtasks({
     if (!pendingDelete) return;
     setDeleting(true);
     try {
-      await deleteTaskRecord(orgId, pendingDelete.id);
+      await deleteTaskRecord(orgId, pendingDelete.id, userId);
       toast.success("Subtask deleted");
       setPendingDelete(null);
       onChange();

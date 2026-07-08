@@ -380,6 +380,48 @@ export type Database = {
           },
         ]
       }
+      task_due_reminder_log: {
+        Row: {
+          days_before: number
+          due_date: string
+          id: string
+          sent_at: string
+          task_id: string
+          user_id: string
+        }
+        Insert: {
+          days_before: number
+          due_date: string
+          id?: string
+          sent_at?: string
+          task_id: string
+          user_id: string
+        }
+        Update: {
+          days_before?: number
+          due_date?: string
+          id?: string
+          sent_at?: string
+          task_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_due_reminder_log_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_due_reminder_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_assignees: {
         Row: {
           created_at: string
