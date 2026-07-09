@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import { sendTaskDueReminderNotification } from "@/lib/email/service.server";
 import { taskLink, uniqueUserIds } from "@/lib/notifications/helpers";
+import { formatDateInTimezone, isOrgReminderHour, normalizeTimezone } from "@/lib/timezone";
 
 const REMINDER_DAYS = [7, 3, 1] as const;
 type ReminderDaysBefore = (typeof REMINDER_DAYS)[number];
@@ -11,24 +12,6 @@ export type TaskDueRemindersResult = {
   notificationsCreated: number;
   emailsSent: number;
 };
-
-function formatDateInTimezone(date: Date, timezone: string): string {
-  try {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: timezone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(date);
-  } catch {
-    return new Intl.DateTimeFormat("en-CA", {
-      timeZone: "UTC",
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).format(date);
-  }
-}
 
 function addDaysToIsoDate(isoDate: string, days: number): string {
   const base = new Date(`${isoDate}T12:00:00Z`);
@@ -99,9 +82,13 @@ export async function runTaskDueReminders(): Promise<TaskDueRemindersResult> {
     throw new Error(`Failed to load organizations: ${orgError.message}`);
   }
 
+  const now = new Date();
+
   for (const org of organizations ?? []) {
-    const timezone = org.timezone?.trim() || "UTC";
-    const today = formatDateInTimezone(new Date(), timezone);
+    const timezone = normalizeTimezone(org.timezone);
+    if (!isOrgReminderHour(now, timezone)) continue;
+
+    const today = formatDateInTimezone(now, timezone);
     const targets = REMINDER_DAYS.map((daysBefore) => ({
       daysBefore,
       dueDate: addDaysToIsoDate(today, daysBefore),

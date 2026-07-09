@@ -6,9 +6,11 @@
 -- Remove an existing job if you are re-scheduling:
 -- SELECT cron.unschedule('task-due-reminders-daily');
 
+-- Runs at minute 1 of every hour UTC. The API only processes orgs where local hour is 00
+-- (just after midnight in each workspace timezone).
 SELECT cron.schedule(
   'task-due-reminders-daily',
-  '0 6 * * *',
+  '1 * * * *',
   $$
   SELECT net.http_post(
     url := 'https://braingig-portal-saas.vercel.app/api/cron/task-due-reminders',

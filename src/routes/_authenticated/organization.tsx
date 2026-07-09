@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/app-shell";
 import { supabase } from "@/integrations/supabase/client";
 import { useOrganization } from "@/hooks/use-organization";
@@ -9,6 +9,7 @@ import { logAudit } from "@/lib/audit";
 import { mergeOrgEmailSettings, parseOrgEmailSettings } from "@/lib/email/org-settings";
 import { sendTestEmailFn } from "@/lib/email/notifications";
 import type { OrgSmtpSettings } from "@/lib/email/types";
+import { formatTimezoneLabel, isValidTimezone, listTimezones } from "@/lib/timezone";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/organization")({
@@ -31,6 +32,7 @@ function OrganizationPage() {
   const { user } = useAuth();
   const { hasAny } = useRoles();
   const canEdit = hasAny("owner", "admin");
+  const timezoneOptions = useMemo(() => listTimezones(), []);
   const [form, setForm] = useState({ name: "", website: "", timezone: "UTC", logo_url: "" });
   const [notificationEmail, setNotificationEmail] = useState("");
   const [smtp, setSmtp] = useState<OrgSmtpSettings>(EMPTY_SMTP);
@@ -79,6 +81,12 @@ function OrganizationPage() {
     e.preventDefault();
     if (!orgId || !canEdit) return;
 
+    const timezone = form.timezone.trim();
+    if (!isValidTimezone(timezone)) {
+      toast.error("Choose a valid timezone");
+      return;
+    }
+
     const { data: current } = await supabase
       .from("organizations")
       .select("settings")
@@ -106,7 +114,7 @@ function OrganizationPage() {
     const { error } = await supabase.from("organizations").update({
       name: form.name.trim(),
       website: form.website || null,
-      timezone: form.timezone,
+      timezone,
       logo_url: form.logo_url || null,
       settings,
     }).eq("id", orgId);
@@ -148,7 +156,23 @@ function OrganizationPage() {
             </label>
             <label className="block">
               <span className="text-xs text-muted-foreground">Timezone</span>
-              <input value={form.timezone} onChange={(e) => setForm({ ...form, timezone: e.target.value })} className="mt-1.5 w-full bg-surface border border-border rounded-md px-3 py-2 text-sm" />
+              <select
+                value={form.timezone}
+                onChange={(e) => setForm({ ...form, timezone: e.target.value })}
+                className="mt-1.5 w-full bg-surface border border-border rounded-md px-3 py-2 text-sm"
+              >
+                {!timezoneOptions.includes(form.timezone) && form.timezone ? (
+                  <option value={form.timezone}>{formatTimezoneLabel(form.timezone)}</option>
+                ) : null}
+                {timezoneOptions.map((timezone) => (
+                  <option key={timezone} value={timezone}>
+                    {formatTimezoneLabel(timezone)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-xs text-muted-foreground mt-1 block">
+                Task due-date reminder emails are sent just after midnight in this timezone.
+              </span>
             </label>
             <label className="block">
               <span className="text-xs text-muted-foreground">Logo URL</span>
